@@ -1,5 +1,11 @@
 # geographic-reference-service
 
+Geographic Reference Service is the system of record for global geographic reference
+data. All repository work is governed by the
+[project constitution](.specify/memory/constitution.md), including its bounded context,
+Java 25 reactive stack, Clean Architecture, contract-first API, migration, testing, and
+JVM deployment rules.
+
 This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
 If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
@@ -35,9 +41,14 @@ If you want to build an _über-jar_, execute the following command:
 
 The application, packaged as an _über-jar_, is now runnable using `java -jar build/*-runner.jar`.
 
-## Creating a native executable
+## Native executable policy
 
-You can create a native executable using:
+The approved production baseline is the Java 25 JVM. Native compilation is not part of
+the initial runtime and must not be adopted unless a constitutional amendment and
+approved ADR document the required benchmarks, compatibility validation, native
+integration tests, and operational acceptance.
+
+After that approval, a native executable can be evaluated using:
 
 ```shell script
 ./gradlew build -Dquarkus.native.enabled=true
@@ -51,4 +62,5 @@ Or, if you don't have GraalVM installed, you can run the native executable build
 
 You can then execute your native executable with: `./build/geographic-reference-service-1.0.0-SNAPSHOT-runner`
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/gradle-tooling>.
+This command is evaluation guidance only; it does not authorize a native production
+deployment.

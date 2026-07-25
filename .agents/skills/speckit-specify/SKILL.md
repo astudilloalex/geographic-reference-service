@@ -131,9 +131,13 @@ Given that feature description, do this:
     5. Generate Functional Requirements
        Each requirement must be testable
        Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
+       Explicitly define scope, non-goals, error behavior, security and access, transaction
+       boundaries, and applicable temporal, contract, migration, provenance, concurrency,
+       idempotency, import/release, event, and deployment behavior
     6. Define Success Criteria
        Create measurable, technology-agnostic outcomes
-       Include both quantitative metrics (time, performance, volume) and qualitative measures (user satisfaction, task completion)
+       Include quantitative performance or volume targets only when supplied by an
+       approved workload or evidence; MUST NOT invent arbitrary targets
        Each criterion must be verifiable without implementation details
     7. Identify Key Entities (if data involved)
     8. Return: SUCCESS (spec ready for planning)
@@ -153,7 +157,7 @@ Given that feature description, do this:
 
       ## Content Quality
 
-      - [ ] No implementation details (languages, frameworks, APIs)
+      - [ ] No low-level implementation detail unless constitutionally required or essential for correctness
       - [ ] Focused on user value and business needs
       - [ ] Written for non-technical stakeholders
       - [ ] All mandatory sections completed
@@ -167,6 +171,10 @@ Given that feature description, do this:
       - [ ] All acceptance scenarios are defined
       - [ ] Edge cases are identified
       - [ ] Scope is clearly bounded
+      - [ ] Non-goals and bounded-context exclusions are explicit
+      - [ ] Error and security behavior are defined
+      - [ ] Transaction boundaries are defined where state changes
+      - [ ] Temporal, contract, migration, and deployment impacts are defined where applicable
       - [ ] Dependencies and assumptions identified
 
       ## Feature Readiness
@@ -174,7 +182,7 @@ Given that feature description, do this:
       - [ ] All functional requirements have clear acceptance criteria
       - [ ] User scenarios cover primary flows
       - [ ] Feature meets measurable outcomes defined in Success Criteria
-      - [ ] No implementation details leak into specification
+      - [ ] Every implementation constraint is constitutional or essential for correctness
 
       ## Notes
 
@@ -310,16 +318,19 @@ When creating this spec from a user prompt:
 **Examples of reasonable defaults** (don't ask about these):
 
 - Data retention: Industry-standard practices for the domain
-- Performance targets: Standard web/mobile app expectations unless specified
+- Performance targets: Do not invent; require measured or explicitly approved workloads
 - Error handling: User-friendly messages with appropriate fallbacks
-- Authentication method: Standard session-based or OAuth2 for web apps
-- Integration patterns: Use project-appropriate patterns (REST/GraphQL for web services, function calls for libraries, CLI args for tools, etc.)
+- Authentication method: Follow the approved identity architecture and require explicit
+  access and authorization decisions
+- Integration patterns: Contract-first Quarkus REST/OpenAPI; messaging only for a
+  confirmed consumer or reliability requirement
 
 ### Success Criteria Guidelines
 
 Success criteria must be:
 
-1. **Measurable**: Include specific metrics (time, percentage, count, rate)
+1. **Measurable**: Include specific verification criteria; numeric workload targets MUST
+   come from user input, measurement, or an approved source
 2. **Technology-agnostic**: No mention of frameworks, languages, databases, or tools
 3. **User-focused**: Describe outcomes from user/business perspective, not system internals
 4. **Verifiable**: Can be tested/validated without knowing implementation details
@@ -327,8 +338,8 @@ Success criteria must be:
 **Good examples**:
 
 - "Users can complete checkout in under 3 minutes"
-- "System supports 10,000 concurrent users"
-- "95% of searches return results in under 1 second"
+- "The approved workload's maximum page size is enforced for every listing"
+- "Every supported lifecycle transition has an observable acceptance scenario"
 - "Task completion rate improves by 40%"
 
 **Bad examples** (implementation-focused):

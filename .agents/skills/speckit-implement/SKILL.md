@@ -95,6 +95,10 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **IF EXISTS**: Read research.md for technical decisions and constraints
    - **IF EXISTS**: Read .specify/memory/constitution.md for governance constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
+   - **READINESS GATE**: STOP before application changes when the specification retains
+     material ambiguity, the plan's Constitution Check contains an unresolved `FAIL`, an
+     exception is unjustified or unapproved, or tasks omit constitutionally required
+     test-first coverage.
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -155,10 +159,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 7. Implementation execution rules:
    - **Setup first**: Initialize project structure, dependencies, configuration
-   - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
-   - **Core development**: Implement models, services, CLI commands, endpoints
+   - **Tests before code**: Execute every required domain, application, PostgreSQL
+     persistence, contract, architecture, migration, and reactive test task before its
+     corresponding implementation task
+   - **Core development**: Implement domain models, use cases, ports, and adapters
    - **Integration work**: Database connections, middleware, logging, external services
-   - **Polish and validation**: Unit tests, performance optimization, documentation
+   - **Polish and validation**: Complete quality gates, evidence-based performance work,
+     and documentation
 
 8. Progress tracking and error handling:
    - Report progress after each completed task

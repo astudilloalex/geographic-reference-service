@@ -8,6 +8,22 @@
 
 **Input**: User description: "$ARGUMENTS"
 
+## Scope and Boundaries *(mandatory)*
+
+### In Scope
+
+- [Business capabilities and geographic records this feature owns]
+
+### Non-Goals
+
+- [Explicitly excluded behavior, including any bounded-context exclusions affected by
+  this request]
+
+### Actors and Access
+
+- [Actor or consuming system, authentication requirement, authorization permission, and
+  whether read access is public or internal]
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -77,6 +93,9 @@
 
 - What happens when [boundary condition]?
 - How does system handle [error scenario]?
+- What happens during concurrent or repeated requests?
+- What happens at lifecycle and temporal boundaries?
+- What happens after partial external, import, or migration failure?
 
 ## Requirements *(mandatory)*
 
@@ -87,35 +106,79 @@
 
 ### Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-001**: System MUST [specific capability, e.g., "resolve an active country by
+  alpha-2 code"]
+- **FR-002**: System MUST [validation, e.g., "reject an invalid canonical division code"]
+- **FR-003**: Authorized catalog managers MUST be able to [domain action, e.g., "activate
+  a validated draft division"]
+- **FR-004**: System MUST [data requirement, e.g., "persist source authority and revision"]
+- **FR-005**: System MUST [behavior, e.g., "preserve historical identifier resolution"]
 
 *Example of marking unclear requirements:*
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- **FR-006**: Read access MUST be [NEEDS CLARIFICATION: public or authenticated internal
+  access has not been decided]
+- **FR-007**: Retriable commands MUST retain idempotency records for
+  [NEEDS CLARIFICATION: retention period not specified]
+
+### Error Behavior *(mandatory)*
+
+- **ER-001**: System MUST [define observable error behavior and stable application error
+  code for each failure class]
+- **ER-002**: HTTP errors MUST [define RFC 9457 status, problem type, safe detail, and
+  retry behavior where applicable]
+
+### Security and Audit *(mandatory)*
+
+- **SR-001**: [Define authentication, authorization scopes or permissions, and access
+  visibility]
+- **SR-002**: [Define principal-derived audit identity and confidential-data handling]
+
+### Transaction and Consistency Boundaries *(mandatory for state or data changes)*
+
+- **TR-001**: [Define the atomic state change, concurrency behavior, idempotency, and work
+  that MUST remain outside the transaction]
+
+### Lifecycle and Temporal Behavior *(include when applicable)*
+
+- **LR-001**: [Define allowed and forbidden lifecycle transitions, visibility, update
+  rights, historical queries, and legal temporal combinations]
+
+### Contract Impact *(include for HTTP or event capabilities)*
+
+- **CR-001**: [Identify the canonical OpenAPI or AsyncAPI contract change, compatibility
+  strategy, pagination, filtering, sorting, errors, idempotency, and concurrency]
+
+### Data and Migration Impact *(include for persisted data changes)*
+
+- **DR-001**: [Define new or changed data, integrity rules, identifiers, provenance,
+  migration and recovery impact, and empty plus upgrade validation]
 
 ### Key Entities *(include if feature involves data)*
 
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
+- **[Country or other aggregate]**: [What it represents and its business attributes]
+- **[Administrative division or related entity]**: [What it represents and its
+  identity-based relationships]
 
 ## Success Criteria *(mandatory)*
 
 <!--
-  ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
+  ACTION REQUIRED: Define measurable, technology-agnostic outcomes supported by the
+  described business need or an approved workload. Do not invent arbitrary performance
+  targets. If the feature is performance-sensitive, include the approved catalog size,
+  request volume, page size, hierarchy depth, access patterns, import size, concurrency,
+  response objectives, and resource limits.
 -->
 
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-001**: [Measurable outcome, e.g., "A catalog manager can complete the defined
+  lifecycle operation using one documented workflow"]
+- **SC-002**: [Measurable outcome derived from an approved workload or evidence]
+- **SC-003**: [Integrity outcome, e.g., "Every invalid hierarchy transition is rejected
+  with the specified error"]
+- **SC-004**: [Consumer outcome, e.g., "A retired identifier resolves according to the
+  documented historical rules"]
 
 ## Assumptions
 
@@ -125,7 +188,17 @@
   chosen when the feature description did not specify certain details.
 -->
 
-- [Assumption about target users, e.g., "Users have stable internet connectivity"]
-- [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
-- [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
-- [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+- [Assumption about consumers, e.g., "Callers use published logical identifiers"]
+- [Assumption about scope, e.g., "Postal codes remain outside this feature"]
+- [Assumption about data, e.g., "The source authority supplies one identifiable revision"]
+- [Dependency, e.g., "Validated principals are supplied by the approved identity architecture"]
+
+## Dependencies and Risks
+
+- [External dependency, failure mode, and ownership]
+- [Known risk, consequence, and required mitigation or decision]
+
+## Documentation Impact
+
+- [README, architecture, C4, API, database, migration, security, deployment, runbook,
+  ADR, local-development, or testing documentation that MUST change]

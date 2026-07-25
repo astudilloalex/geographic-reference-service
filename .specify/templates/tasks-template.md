@@ -9,7 +9,9 @@ description: "Task list template for feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Tests are MANDATORY. Generate test-first tasks for every applicable domain,
+application, PostgreSQL persistence, OpenAPI contract, architecture, migration, and
+reactive behavior before the corresponding implementation tasks.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -21,10 +23,11 @@ description: "Task list template for feature implementation"
 
 ## Path Conventions
 
-- **Single project**: `src/`, `tests/` at repository root
-- **Web app**: `backend/src/`, `frontend/src/`
-- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
-- Paths shown below assume single project - adjust based on plan.md structure
+- **Application**: `src/main/java/`
+- **Resources and migrations**: `src/main/resources/`
+- **Tests**: `src/test/java/` and `src/test/resources/`
+- **Canonical contracts**: `openapi/` and, when approved, `asyncapi/`
+- **Documentation and deployment**: `docs/` and `deploy/`
 
 <!--
   ============================================================================
@@ -50,8 +53,8 @@ description: "Task list template for feature implementation"
 **Purpose**: Project initialization and basic structure
 
 - [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T002 Verify Java 25 Gradle Wrapper/Kotlin DSL and approved Quarkus BOM in build.gradle.kts
+- [ ] T003 [P] Configure formatting, static analysis, vulnerability, secret, and SBOM tooling in build.gradle.kts
 
 ---
 
@@ -63,12 +66,12 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T004 Define package-level Clean Architecture boundaries in src/main/java/
+- [ ] T005 Add architecture rules in src/test/java/
+- [ ] T006 Configure isolated Flyway migration and reactive PostgreSQL runtime access in src/main/resources/application.properties
+- [ ] T007 [P] Configure authentication and authorization adapters in src/main/java/
+- [ ] T008 [P] Establish canonical OpenAPI contract location in openapi/
+- [ ] T009 Configure RFC 9457 error mapping, structured logging, tracing, metrics, and health in src/main/java/
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -80,21 +83,23 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 1 (MANDATORY; write before implementation) ⚠️
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Add domain/application tests for [behavior] in src/test/java/[package]/[Name]Test.java
+- [ ] T011 [P] [US1] Add OpenAPI contract test for [endpoint] in src/test/java/[package]/[Name]ContractTest.java
+- [ ] T012 [P] [US1] Add PostgreSQL/Flyway/reactive integration tests in src/test/java/[package]/[Name]PersistenceTest.java
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T013 [P] [US1] Implement [value object/aggregate] in src/main/java/[domain-package]/[Name].java
+- [ ] T014 [P] [US1] Define [use case/port] in src/main/java/[application-package]/[Name].java
+- [ ] T015 [US1] Add immutable Flyway migration in src/main/resources/db/migration/[version]__[name].sql
+- [ ] T016 [US1] Implement reactive persistence adapter in src/main/java/[outbound-package]/[Name].java
+- [ ] T017 [US1] Update canonical contract in openapi/[contract].yaml before implementing the REST adapter
+- [ ] T018 [US1] Implement REST adapter and RFC 9457 mapping in src/main/java/[inbound-package]/[Name]Resource.java
+- [ ] T019 [US1] Add security, audit, observability, and documentation required by the story
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -106,17 +111,17 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 2 (MANDATORY; write before implementation) ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T020 [P] [US2] Add domain/application tests in src/test/java/[package]/[Name]Test.java
+- [ ] T021 [P] [US2] Add applicable contract, PostgreSQL, migration, and reactive tests in src/test/java/[package]/
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T022 [P] [US2] Implement domain behavior in src/main/java/[domain-package]/[Name].java
+- [ ] T023 [US2] Implement use case and ports in src/main/java/[application-package]/
+- [ ] T024 [US2] Implement required migration, contract, and adapters in their planned paths
+- [ ] T025 [US2] Integrate with User Story 1 components without violating story independence
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -128,16 +133,15 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 3 (MANDATORY; write before implementation) ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T026 [P] [US3] Add domain/application tests in src/test/java/[package]/[Name]Test.java
+- [ ] T027 [P] [US3] Add applicable contract, PostgreSQL, migration, and reactive tests in src/test/java/[package]/
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T028 [P] [US3] Implement domain behavior in src/main/java/[domain-package]/[Name].java
+- [ ] T029 [US3] Implement use case, contract, migration, and adapters in their planned paths
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -153,9 +157,11 @@ Examples of foundational tasks (adjust based on your project):
 
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
-- [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
-- [ ] TXXX Security hardening
+- [ ] TXXX Evidence-based performance validation for approved workloads
+- [ ] TXXX [P] Complete required unit, integration, contract, architecture, migration, and reactive test coverage in src/test/
+- [ ] TXXX Security and secret-handling verification
+- [ ] TXXX Build non-root JVM OCI image and validate deploy/ Quadlet manifests
+- [ ] TXXX Run compilation, static analysis, dependency and secret scans, formatting, tests, container build, and manifest quality gates
 - [ ] TXXX Run quickstart.md validation
 
 ---
@@ -199,13 +205,13 @@ Examples of foundational tasks (adjust based on your project):
 ## Parallel Example: User Story 1
 
 ```bash
-# Launch all tests for User Story 1 together (if tests requested):
-Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
-Task: "Integration test for [user journey] in tests/integration/test_[name].py"
+# Launch all independently parallelizable tests for User Story 1:
+Task: "Contract test for [endpoint] in src/test/java/[package]/[Name]ContractTest.java"
+Task: "PostgreSQL integration test in src/test/java/[package]/[Name]PersistenceTest.java"
 
 # Launch all models for User Story 1 together:
-Task: "Create [Entity1] model in src/models/[entity1].py"
-Task: "Create [Entity2] model in src/models/[entity2].py"
+Task: "Create [ValueObject] in src/main/java/[domain-package]/[ValueObject].java"
+Task: "Create [Aggregate] in src/main/java/[domain-package]/[Aggregate].java"
 ```
 
 ---
@@ -246,7 +252,8 @@ With multiple developers:
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
-- Verify tests fail before implementing
+- Required tests MUST be written before their corresponding implementation and MUST
+  demonstrate the missing behavior when practical
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
