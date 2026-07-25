@@ -1,168 +1,201 @@
 ---
-
-description: "Task list template for feature implementation"
+description: "Task list template for read-only geographic query feature implementation"
 ---
 
 # Tasks: [FEATURE NAME]
 
 **Input**: Design documents from `/specs/[###-feature-name]/`
 
-**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
+**Prerequisites**: plan.md (required), spec.md (required for query user stories),
+research.md, data-model.md, contracts/
 
-**Tests**: Tests are MANDATORY. Generate test-first tasks for every applicable domain,
-application, PostgreSQL persistence, OpenAPI contract, architecture, migration, and
-reactive behavior before the corresponding implementation tasks.
+**Tests**: Tests are MANDATORY and MUST precede corresponding implementation. Generate
+test-first tasks for every applicable domain query, application query, PostgreSQL 18
+reactive persistence, runtime-role privilege, OpenAPI/HTTP-method exclusion,
+architecture, conditional migration, bounded pagination/hierarchy, and reactive behavior.
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+**Organization**: Tasks are grouped by consuming-system query story so each story can be
+implemented and verified independently.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- Include exact file paths in descriptions
+- **[P]**: Can run in parallel because it affects different files and has no dependency
+  on incomplete work.
+- **[Story]**: Query user story label, such as US1, US2, or US3.
+- Every task MUST include an exact file path.
+
+## Read-Only Task Rules
+
+- Tasks MUST implement only query use cases and `GET`, `HEAD`, or required `OPTIONS`
+  adapters.
+- Tasks MUST NOT create `POST`, `PUT`, `PATCH`, `DELETE`, mutation use cases, mutation
+  repository methods, scheduled mutation jobs, message consumers, generic CRUD,
+  application imports, publication flows, outbox code, or command idempotency.
+- Flyway schema or catalog-data tasks MUST be generated only when the feature changes
+  schema or reference data.
+- Every migration test task MUST precede its migration implementation task.
+- SQL catalog changes MUST include provenance, PostgreSQL 18 validation, atomicity,
+  recovery, deterministic count/checksum validation, and protection from partial
+  activation.
+- Runtime database-role tests MUST prove required reads succeed and `INSERT`, `UPDATE`,
+  and `DELETE` fail.
+- OpenAPI tests MUST prove mutation methods are absent and unavailable.
+- Deployment tasks MUST keep migration and runtime identities separate and MUST execute
+  Flyway outside application startup.
 
 ## Path Conventions
 
 - **Application**: `src/main/java/`
-- **Resources and migrations**: `src/main/resources/`
+- **Resources and conditional migrations**: `src/main/resources/`
 - **Tests**: `src/test/java/` and `src/test/resources/`
-- **Canonical contracts**: `openapi/` and, when approved, `asyncapi/`
+- **Canonical read-only contract**: `openapi/`
 - **Documentation and deployment**: `docs/` and `deploy/`
 
 <!--
   ============================================================================
-  IMPORTANT: The tasks below are SAMPLE TASKS for illustration purposes only.
+  IMPORTANT: The sample tasks below MUST be replaced by /speckit-tasks using:
+  - Consuming-system query stories and priorities from spec.md
+  - Read-only design and Constitution Check evidence from plan.md
+  - Read-domain concepts from data-model.md
+  - GET/HEAD/required OPTIONS operations from contracts/
 
-  The /speckit-tasks command MUST replace these with actual tasks based on:
-  - User stories from spec.md (with their priorities P1, P2, P3...)
-  - Feature requirements from plan.md
-  - Entities from data-model.md
-  - Endpoints from contracts/
-
-  Tasks MUST be organized by user story so each story can be:
-  - Implemented independently
-  - Tested independently
-  - Delivered as an MVP increment
-
-  DO NOT keep these sample tasks in the generated tasks.md file.
+  Do not preserve sample tasks in generated tasks.md.
   ============================================================================
 -->
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Setup (Shared Query Infrastructure)
 
-**Purpose**: Project initialization and basic structure
+**Purpose**: Establish the approved build and query-only project structure.
 
-- [ ] T001 Create project structure per implementation plan
-- [ ] T002 Verify Java 25 Gradle Wrapper/Kotlin DSL and approved Quarkus BOM in build.gradle.kts
+- [ ] T001 Verify Java 25 Gradle Wrapper/Kotlin DSL and approved Quarkus BOM in build.gradle.kts
+- [ ] T002 Define query-focused Clean Architecture package boundaries in src/main/java/[base-package]/package-info.java
 - [ ] T003 [P] Configure formatting, static analysis, vulnerability, secret, and SBOM tooling in build.gradle.kts
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
+**Purpose**: Enforce read-only behavior before any query story is implemented.
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+**⚠️ CRITICAL**: No query story work can begin until this phase is complete.
 
-Examples of foundational tasks (adjust based on your project):
+- [ ] T004 Add Clean Architecture and no-mutation rules in src/test/java/[base-package]/architecture/ArchitectureTest.java
+- [ ] T005 Add OpenAPI method-exclusion tests for POST, PUT, PATCH, and DELETE in src/test/java/[base-package]/contract/ReadOnlyOpenApiTest.java
+- [ ] T006 Add PostgreSQL 18 privilege tests proving runtime SELECT succeeds and INSERT, UPDATE, and DELETE fail in src/test/java/[base-package]/persistence/RuntimeRolePrivilegeTest.java
+- [ ] T007 Configure only reactive PostgreSQL runtime access with the read-only identity in src/main/resources/application.properties
+- [ ] T008 Configure separate external Flyway migration and runtime identities in deploy/geographic-migration.container and deploy/geographic-reference-service.container
+- [ ] T009 [P] Establish the canonical read-only OpenAPI contract in openapi/[contract].yaml
+- [ ] T010 [P] Configure RFC 9457 query error mapping in src/main/java/[base-package]/adapter/inbound/rest/ProblemMapper.java
+- [ ] T011 [P] Configure structured JSON logs, tracing, metrics, health, build revision, and catalog revision reporting in src/main/java/[base-package]/infrastructure/ObservabilityConfiguration.java
 
-- [ ] T004 Define package-level Clean Architecture boundaries in src/main/java/
-- [ ] T005 Add architecture rules in src/test/java/
-- [ ] T006 Configure isolated Flyway migration and reactive PostgreSQL runtime access in src/main/resources/application.properties
-- [ ] T007 [P] Configure authentication and authorization adapters in src/main/java/
-- [ ] T008 [P] Establish canonical OpenAPI contract location in openapi/
-- [ ] T009 Configure RFC 9457 error mapping, structured logging, tracing, metrics, and health in src/main/java/
-
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+**Checkpoint**: Read-only architecture, contract, credentials, and operations are
+enforceable.
 
 ---
 
-## Phase 3: User Story 1 - [Title] (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - [Resolve Reference Data] (Priority: P1) 🎯 MVP
 
-**Goal**: [Brief description of what this story delivers]
+**Goal**: [Describe the independent query value delivered to a consuming system.]
 
-**Independent Test**: [How to verify this story works on its own]
+**Independent Test**: [Describe input, visible catalog fixture, and expected query result
+or RFC 9457 error.]
 
 ### Tests for User Story 1 (MANDATORY; write before implementation) ⚠️
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> Write these tests first and demonstrate the missing query behavior when practical.
 
-- [ ] T010 [P] [US1] Add domain/application tests for [behavior] in src/test/java/[package]/[Name]Test.java
-- [ ] T011 [P] [US1] Add OpenAPI contract test for [endpoint] in src/test/java/[package]/[Name]ContractTest.java
-- [ ] T012 [P] [US1] Add PostgreSQL/Flyway/reactive integration tests in src/test/java/[package]/[Name]PersistenceTest.java
+- [ ] T012 [P] [US1] Add domain normalization and visibility tests in src/test/java/[base-package]/domain/[Concept]Test.java
+- [ ] T013 [P] [US1] Add application query orchestration and failure tests in src/test/java/[base-package]/application/[Query]Test.java
+- [ ] T014 [P] [US1] Add PostgreSQL 18 reactive query integration tests in src/test/java/[base-package]/persistence/[Query]PersistenceTest.java
+- [ ] T015 [P] [US1] Add GET/HEAD contract and RFC 9457 tests in src/test/java/[base-package]/contract/[Query]ContractTest.java
+
+### Conditional Migration Tests and Implementation for User Story 1
+
+<!-- Include both tasks only when US1 changes schema or reference data. -->
+
+- [ ] T016 [US1] Add clean and previous-revision migration, constraint, atomic-failure, recovery, provenance, and checksum tests in src/test/java/[base-package]/migration/[Catalog]MigrationTest.java
+- [ ] T017 [US1] Add immutable Flyway schema/catalog migration in src/main/resources/db/migration/[version]__[name].sql
 
 ### Implementation for User Story 1
 
-- [ ] T013 [P] [US1] Implement [value object/aggregate] in src/main/java/[domain-package]/[Name].java
-- [ ] T014 [P] [US1] Define [use case/port] in src/main/java/[application-package]/[Name].java
-- [ ] T015 [US1] Add immutable Flyway migration in src/main/resources/db/migration/[version]__[name].sql
-- [ ] T016 [US1] Implement reactive persistence adapter in src/main/java/[outbound-package]/[Name].java
-- [ ] T017 [US1] Update canonical contract in openapi/[contract].yaml before implementing the REST adapter
-- [ ] T018 [US1] Implement REST adapter and RFC 9457 mapping in src/main/java/[inbound-package]/[Name]Resource.java
-- [ ] T019 [US1] Add security, audit, observability, and documentation required by the story
+- [ ] T018 [P] [US1] Implement immutable read-domain value objects in src/main/java/[base-package]/domain/[Concept].java
+- [ ] T019 [P] [US1] Define the query input port, query repository output port, and bounded result model in src/main/java/[base-package]/application/[Query].java
+- [ ] T020 [US1] Implement the reactive query persistence adapter in src/main/java/[base-package]/adapter/outbound/persistence/[Query]Adapter.java
+- [ ] T021 [US1] Update GET/HEAD paths in openapi/[contract].yaml before the REST adapter
+- [ ] T022 [US1] Implement the query-only REST adapter in src/main/java/[base-package]/adapter/inbound/rest/[Query]Resource.java
+- [ ] T023 [US1] Add read access, query metrics, catalog provenance/revision, and documentation required by the story in docs/[feature].md
 
-**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+**Checkpoint**: User Story 1 is independently queryable and exposes no mutation path.
 
 ---
 
-## Phase 4: User Story 2 - [Title] (Priority: P2)
+## Phase 4: User Story 2 - [Browse Bounded Hierarchy] (Priority: P2)
 
-**Goal**: [Brief description of what this story delivers]
+**Goal**: [Describe the bounded hierarchy query.]
 
-**Independent Test**: [How to verify this story works on its own]
+**Independent Test**: [Describe pagination, depth, result-limit, lifecycle, and temporal
+verification.]
 
 ### Tests for User Story 2 (MANDATORY; write before implementation) ⚠️
 
-- [ ] T020 [P] [US2] Add domain/application tests in src/test/java/[package]/[Name]Test.java
-- [ ] T021 [P] [US2] Add applicable contract, PostgreSQL, migration, and reactive tests in src/test/java/[package]/
+- [ ] T024 [P] [US2] Add hierarchy-navigation application tests in src/test/java/[base-package]/application/[HierarchyQuery]Test.java
+- [ ] T025 [P] [US2] Add PostgreSQL 18 recursive query, pagination, and limit tests in src/test/java/[base-package]/persistence/[HierarchyQuery]PersistenceTest.java
+- [ ] T026 [P] [US2] Add bounded hierarchy OpenAPI contract tests in src/test/java/[base-package]/contract/[HierarchyQuery]ContractTest.java
+- [ ] T027 [US2] Add approved query-plan and index validation in src/test/java/[base-package]/persistence/[HierarchyQuery]PlanTest.java
 
 ### Implementation for User Story 2
 
-- [ ] T022 [P] [US2] Implement domain behavior in src/main/java/[domain-package]/[Name].java
-- [ ] T023 [US2] Implement use case and ports in src/main/java/[application-package]/
-- [ ] T024 [US2] Implement required migration, contract, and adapters in their planned paths
-- [ ] T025 [US2] Integrate with User Story 1 components without violating story independence
+- [ ] T028 [P] [US2] Implement hierarchy read-domain semantics in src/main/java/[base-package]/domain/[HierarchyConcept].java
+- [ ] T029 [US2] Implement bounded hierarchy query ports and orchestration in src/main/java/[base-package]/application/[HierarchyQuery].java
+- [ ] T030 [US2] Implement the reactive recursive query adapter in src/main/java/[base-package]/adapter/outbound/persistence/[HierarchyQuery]Adapter.java
+- [ ] T031 [US2] Update the GET hierarchy contract in openapi/[contract].yaml
+- [ ] T032 [US2] Implement the GET hierarchy REST adapter in src/main/java/[base-package]/adapter/inbound/rest/[HierarchyQuery]Resource.java
 
-**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+**Checkpoint**: User Stories 1 and 2 work independently with bounded results.
 
 ---
 
-## Phase 5: User Story 3 - [Title] (Priority: P3)
+## Phase 5: User Story 3 - [Resolve Localized or Historical Data] (Priority: P3)
 
-**Goal**: [Brief description of what this story delivers]
+**Goal**: [Describe the localization fallback or explicit historical query.]
 
-**Independent Test**: [How to verify this story works on its own]
+**Independent Test**: [Describe language fallback and/or half-open `asOf` boundaries.]
 
 ### Tests for User Story 3 (MANDATORY; write before implementation) ⚠️
 
-- [ ] T026 [P] [US3] Add domain/application tests in src/test/java/[package]/[Name]Test.java
-- [ ] T027 [P] [US3] Add applicable contract, PostgreSQL, migration, and reactive tests in src/test/java/[package]/
+- [ ] T033 [P] [US3] Add language fallback and temporal visibility tests in src/test/java/[base-package]/domain/[Visibility]Test.java
+- [ ] T034 [P] [US3] Add application localization and historical query tests in src/test/java/[base-package]/application/[HistoricalQuery]Test.java
+- [ ] T035 [P] [US3] Add PostgreSQL 18 name and `asOf` query tests in src/test/java/[base-package]/persistence/[HistoricalQuery]PersistenceTest.java
+- [ ] T036 [P] [US3] Add cache-validation and historical contract tests in src/test/java/[base-package]/contract/[HistoricalQuery]ContractTest.java
 
 ### Implementation for User Story 3
 
-- [ ] T028 [P] [US3] Implement domain behavior in src/main/java/[domain-package]/[Name].java
-- [ ] T029 [US3] Implement use case, contract, migration, and adapters in their planned paths
+- [ ] T037 [P] [US3] Implement lifecycle, temporal, and localization read semantics in src/main/java/[base-package]/domain/[Visibility].java
+- [ ] T038 [US3] Implement localization or historical query ports and orchestration in src/main/java/[base-package]/application/[HistoricalQuery].java
+- [ ] T039 [US3] Implement the reactive name or temporal query adapter in src/main/java/[base-package]/adapter/outbound/persistence/[HistoricalQuery]Adapter.java
+- [ ] T040 [US3] Update the GET historical/localized contract in openapi/[contract].yaml
+- [ ] T041 [US3] Implement the GET historical/localized REST adapter in src/main/java/[base-package]/adapter/inbound/rest/[HistoricalQuery]Resource.java
 
-**Checkpoint**: All user stories should now be independently functional
+**Checkpoint**: All query stories are independently functional.
 
 ---
 
-[Add more user story phases as needed, following the same pattern]
+[Add more consuming-system query story phases as needed.]
 
 ---
 
-## Phase N: Polish & Cross-Cutting Concerns
+## Phase N: Polish & Cross-Cutting Read-Only Verification
 
-**Purpose**: Improvements that affect multiple user stories
-
-- [ ] TXXX [P] Documentation updates in docs/
-- [ ] TXXX Code cleanup and refactoring
-- [ ] TXXX Evidence-based performance validation for approved workloads
-- [ ] TXXX [P] Complete required unit, integration, contract, architecture, migration, and reactive test coverage in src/test/
-- [ ] TXXX Security and secret-handling verification
-- [ ] TXXX Build non-root JVM OCI image and validate deploy/ Quadlet manifests
-- [ ] TXXX Run compilation, static analysis, dependency and secret scans, formatting, tests, container build, and manifest quality gates
-- [ ] TXXX Run quickstart.md validation
+- [ ] TXXX [P] Update read-only API, database identity, migration, security, deployment, and operations documentation in docs/
+- [ ] TXXX Re-run OpenAPI tests proving only GET, HEAD, and required OPTIONS are exposed in src/test/java/[base-package]/contract/
+- [ ] TXXX Re-run architecture tests proving no mutation use case, repository method, runtime JDBC, startup Flyway, or resource-to-persistence dependency exists in src/test/java/[base-package]/architecture/
+- [ ] TXXX Re-run PostgreSQL 18 runtime-role read and mutation-rejection tests in src/test/java/[base-package]/persistence/
+- [ ] TXXX Validate bounded pagination, hierarchy depth/results, indexes, and approved query plans in src/test/java/[base-package]/persistence/
+- [ ] TXXX Validate external one-shot migration ordering and read-only runtime startup in deploy/
+- [ ] TXXX Validate RFC 9457 errors, cache behavior, access policy, logs, traces, metrics, health, and catalog revision metadata in src/test/
+- [ ] TXXX Build the non-root JVM OCI image and validate rootless Quadlet manifests in deploy/
+- [ ] TXXX Run compilation, formatting, static analysis, dependency/secret scans, all tests, container build, and manifest quality gates
+- [ ] TXXX Run quickstart.md read-only validation scenarios in specs/[###-feature-name]/quickstart.md
 
 ---
 
@@ -170,90 +203,52 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
-- **User Stories (Phase 3+)**: All depend on Foundational phase completion
-  - User stories can then proceed in parallel (if staffed)
-  - Or sequentially in priority order (P1 → P2 → P3)
-- **Polish (Final Phase)**: Depends on all desired user stories being complete
+- **Setup**: No dependencies.
+- **Foundational**: Depends on Setup and blocks every query story.
+- **Query Stories**: Depend on Foundational; MAY proceed independently when their files
+  and data dependencies do not overlap.
+- **Polish**: Depends on all selected query stories.
 
-### User Story Dependencies
+### Within Each Query Story
 
-- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
-- **User Story 2 (P2)**: Can start after Foundational (Phase 2) - May integrate with US1 but should be independently testable
-- **User Story 3 (P3)**: Can start after Foundational (Phase 2) - May integrate with US1/US2 but should be independently testable
-
-### Within Each User Story
-
-- Tests (if included) MUST be written and FAIL before implementation
-- Models before services
-- Services before endpoints
-- Core implementation before integration
-- Story complete before moving to next priority
+- Tests MUST be written before implementation.
+- Migration tests MUST precede a conditional migration.
+- Read-domain values precede application query ports.
+- Application query ports precede persistence and REST adapters.
+- Canonical OpenAPI changes MUST precede REST adapter implementation.
+- Query limits and privilege enforcement MUST be verified before story completion.
 
 ### Parallel Opportunities
 
-- All Setup tasks marked [P] can run in parallel
-- All Foundational tasks marked [P] can run in parallel (within Phase 2)
-- Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
-- All tests for a user story marked [P] can run in parallel
-- Models within a story marked [P] can run in parallel
-- Different user stories can be worked on in parallel by different team members
-
----
-
-## Parallel Example: User Story 1
-
-```bash
-# Launch all independently parallelizable tests for User Story 1:
-Task: "Contract test for [endpoint] in src/test/java/[package]/[Name]ContractTest.java"
-Task: "PostgreSQL integration test in src/test/java/[package]/[Name]PersistenceTest.java"
-
-# Launch all models for User Story 1 together:
-Task: "Create [ValueObject] in src/main/java/[domain-package]/[ValueObject].java"
-Task: "Create [Aggregate] in src/main/java/[domain-package]/[Aggregate].java"
-```
+- Tasks marked `[P]` affect independent files and MAY run in parallel.
+- Domain, application, persistence, and contract test tasks MAY run in parallel when
+  their fixtures and files are independent.
+- Different query stories MAY run in parallel only after Foundational completes.
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 Only)
+### MVP First
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 1
-4. **STOP and VALIDATE**: Test User Story 1 independently
-5. Deploy/demo if ready
+1. Complete Setup.
+2. Complete Foundational read-only enforcement.
+3. Complete User Story 1 tests and implementation.
+4. Validate User Story 1 independently, including method exclusion and runtime-role
+   mutation rejection.
 
 ### Incremental Delivery
 
-1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 → Test independently → Deploy/Demo (MVP!)
-3. Add User Story 2 → Test independently → Deploy/Demo
-4. Add User Story 3 → Test independently → Deploy/Demo
-5. Each story adds value without breaking previous stories
-
-### Parallel Team Strategy
-
-With multiple developers:
-
-1. Team completes Setup + Foundational together
-2. Once Foundational is done:
-   - Developer A: User Story 1
-   - Developer B: User Story 2
-   - Developer C: User Story 3
-3. Stories complete and integrate independently
-
----
+1. Deliver each query story as a bounded, independently tested increment.
+2. Introduce SQL catalog migrations only for documented data or schema impact.
+3. Keep the migration identity outside the long-running application for every increment.
+4. Re-run cross-cutting read-only verification before promotion.
 
 ## Notes
 
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
-- Required tests MUST be written before their corresponding implementation and MUST
-  demonstrate the missing behavior when practical
-- Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- Every task MUST remain traceable to a query requirement or constitutional gate.
+- Required tests MUST precede their corresponding implementation.
+- No task MAY expand runtime scope into administration, imports, publication, lifecycle
+  commands, messaging, or data mutation.
+- Avoid vague tasks, file conflicts, unbounded queries, and cross-story dependencies that
+  break independent verification.

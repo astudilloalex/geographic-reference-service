@@ -1,37 +1,55 @@
 <!--
 Sync Impact Report
-- Version change: unratified template -> 1.0.0
+- Version change: 1.0.0 -> 2.0.0
+- Bump rationale: MAJOR because runtime mutation, administration, import, publication,
+  lifecycle-command, event-publication, and application-managed migration responsibilities
+  are removed and the runtime becomes permanently read-only.
 - Modified principles:
-  - Placeholder Principle 1 -> I. Global Geographic System of Record
-  - Placeholder Principle 2 -> II. Approved Technology Baseline
-  - Placeholder Principle 3 -> III. Pure Clean Architecture
-  - Placeholder Principle 4 -> IV. End-to-End Reactive Execution
-  - Placeholder Principle 5 -> V. Domain and Data Integrity
-- Added principles:
-  - VI. Migration-Controlled PostgreSQL
-  - VII. Contract-First Integration
-  - VIII. Security, Auditability, and Provenance
-  - IX. Test-First Verification
-  - X. Observable, Measured Operations
-  - XI. Reproducible JVM Delivery
-  - XII. Simplicity and Explicit Decisions
+  - I. Global Geographic System of Record -> I. Read-Only Global Geographic Reference Service
+  - II. Approved Technology Baseline -> II. Runtime Technology Baseline
+  - III. Pure Clean Architecture -> III. Pure Clean Architecture for Queries
+  - IV. End-to-End Reactive Execution -> IV. Reactive Read Execution
+  - V. Domain and Data Integrity -> V. Reference-Data Integrity and Temporal Semantics
+  - VI. Migration-Controlled PostgreSQL -> VI. Controlled SQL Catalog Maintenance
+  - VII. Contract-First Integration -> VII. Query-Focused Contract-First API
+  - VIII. Security, Auditability, and Provenance -> VIII. Read Access, Audit, and Provenance
+  - IX. Test-First Verification -> IX. Test-First Query and Migration Verification
+  - X. Observable, Measured Operations -> X. Observable and Bounded Read Operations
+  - XI. Reproducible JVM Delivery -> XI. Separated Migration and JVM Delivery
+  - XII. Simplicity and Explicit Decisions -> XII. Simplicity and Explicit Decisions
 - Added sections:
-  - Engineering Standards
-  - Quality Gates and Workflow
-  - Constitution Check
-  - Governance metadata and amendment rules
-- Removed sections:
-  - Unfilled template placeholders and example comments
-- Propagation:
+  - Permanent runtime read-only boundary with GET, HEAD, and required OPTIONS only
+  - SQL-only catalog maintenance through immutable Flyway migrations
+  - Separate migration and SELECT-only runtime PostgreSQL identities
+  - Query lifecycle, temporal, caching, pagination, hierarchy, and error semantics
+  - Deployment ordering and catalog revision readiness requirements
+- Removed sections and concepts:
+  - Write-oriented Data and Transactions guidance
+  - Import-, publication-, and event-oriented Contracts and Releases guidance
+  - Runtime state-changing commands and write transactions
+  - Administrative, catalog-management, import, publication, and bulk-upload endpoints
+  - Application-managed lifecycle transitions and caller-populated audit identities
+  - Optimistic write concurrency, If-Match mutation semantics, and command idempotency
+  - Transactional outbox, integration-event publication, and message consumers
+  - Runtime Flyway execution and runtime JDBC migration datasource
+- Templates and guidance requiring updates:
   - ✅ updated .specify/templates/plan-template.md
   - ✅ updated .specify/templates/spec-template.md
   - ✅ updated .specify/templates/tasks-template.md
-  - ✅ updated .agents/skills/speckit-specify/SKILL.md
-  - ✅ updated .agents/skills/speckit-tasks/SKILL.md
-  - ✅ updated .agents/skills/speckit-implement/SKILL.md
+  - ✅ updated affected .agents/skills/speckit-*/SKILL.md guidance
   - ✅ updated README.md
-  - ✅ reviewed remaining installed Spec Kit skill definitions; no conflicting
-    agent-specific or constitutional guidance found
+  - ✅ reviewed remaining installed Spec Kit skills; no conflicting project guidance found
+- Migration requirements for existing implementation or documentation:
+  - Repository scan found no application Java sources, HTTP routes, persistence adapters,
+    Flyway startup configuration, or JDBC datasource to migrate in this amendment.
+  - Any implementation added after ratification MUST exclude runtime write routes,
+    mutation use cases or repositories, scheduled catalog writers, message consumers,
+    startup Flyway execution, and runtime JDBC datasources.
+  - Provision separate migration and runtime database identities and prove runtime
+    INSERT, UPDATE, and DELETE rejection before the first runtime data feature is promoted.
+  - Move every catalog change to a reviewed, immutable Flyway SQL migration and align
+    OpenAPI, tests, deployment documentation, and operations with query-only behavior.
+  - README.md now documents the read-only runtime and external migration boundary.
 - Follow-up TODOs: none
 -->
 # Geographic Reference Service Constitution
@@ -40,15 +58,31 @@ Sync Impact Report
 
 ## Core Principles
 
-### I. Global Geographic System of Record
+### I. Read-Only Global Geographic Reference Service
 
 Geographic Reference Service MUST be the independently deployable system of record for
-global geographic reference data. It MUST own countries and ISO-recognized territories;
-ISO 3166-1 alpha-2, alpha-3, and numeric codes; political-administrative division types
-and hierarchies; stable canonical division codes; external identifier schemes; localized,
-official, common, alternative, and historical names; lifecycle status; temporal validity;
-source authority, provenance, and revision; and, when approved, catalog releases and
-controlled imports.
+global geographic reference data and MUST expose that data exclusively through read-only
+HTTP endpoints. The runtime application MUST support only safe and idempotent query
+operations. Application HTTP methods MUST be limited to `GET`, `HEAD`, and `OPTIONS` when
+infrastructure or protocol behavior requires it.
+
+The application MUST NOT expose `POST`, `PUT`, `PATCH`, or `DELETE` endpoints;
+administrative or catalog-management endpoints; lifecycle-transition commands; import,
+publication, or bulk-upload endpoints; database-maintenance endpoints; generic CRUD
+endpoints; or hidden or undocumented mutation endpoints. No endpoint, scheduled
+application job, message consumer, or application use case MAY insert, update, delete,
+activate, deprecate, retire, or otherwise modify geographic catalog records.
+
+The absence of runtime writes is a permanent architectural boundary, not a version-one
+scope decision. A future proposal for runtime mutation requires a constitutional MAJOR
+amendment, an approved ADR, a new threat model, a new database-permission model, explicit
+transactional and audit requirements, and review of bounded-context ownership.
+
+The service MUST own countries and ISO-recognized territories; ISO 3166-1 alpha-2,
+alpha-3, and numeric codes; political-administrative division types and hierarchies;
+stable canonical division codes; external identifier schemes; localized, official,
+common, alternative, and historical names; lifecycle status; temporal validity; and
+source authority, provenance, and revision.
 
 The service MUST NOT own postal or physical addresses, contact information, customer or
 organization coordinates, geocoding, reverse geocoding, postal delivery rules, tax
@@ -63,431 +97,533 @@ Geographic data MUST remain global and shared. Catalog tables MUST NOT contain
 country codes or canonical division codes, and MUST NOT create database foreign keys to
 this service's database. This service MUST own its database schema exclusively.
 
-### II. Approved Technology Baseline
+### II. Runtime Technology Baseline
 
 Application source MUST use Java 25. Builds MUST use the committed Gradle Wrapper,
 `build.gradle.kts`, and `settings.gradle.kts`; developers and CI MUST invoke
-`./gradlew`. Kotlin MUST be limited to Gradle build DSL unless this constitution is
-amended.
+`./gradlew`. Kotlin MUST remain limited to Gradle build scripts.
 
-The runtime baseline MUST use the approved Quarkus LTS release and latest approved patch,
-Quarkus REST, Jackson, Mutiny, Hibernate Reactive with Panache repositories, the Vert.x
-Reactive PostgreSQL Client, PostgreSQL 18 or the explicitly approved project baseline,
-Flyway, repository-stored OpenAPI contracts, Podman-compatible OCI images, and rootless
-Podman Quadlet artifacts.
+The project MUST use an approved Quarkus LTS release at the latest approved patch,
+Quarkus REST, Jackson, Mutiny, Hibernate Reactive with the Panache repository pattern or
+justified Vert.x Reactive PostgreSQL Client queries, PostgreSQL 18, Flyway,
+repository-stored OpenAPI, JVM deployment, OCI containers, and rootless Podman Quadlet.
+
+Runtime database access MUST remain fully reactive and non-blocking. JDBC MAY be used
+only by the external Flyway migration process. The runtime application MUST NOT configure
+or use a JDBC datasource.
 
 A framework, database, broker, cache, protocol, or infrastructure product MUST NOT be
 added without a confirmed requirement and documented architectural justification.
 Blocking Hibernate ORM, runtime JDBC, Redis, Kafka, RabbitMQ, Elasticsearch, OpenSearch,
 GraphQL, PostGIS, event-sourcing infrastructure, CQRS infrastructure, distributed
-transactions, XA, and native compilation MUST NOT be introduced speculatively. Flyway
-MAY use an isolated JDBC datasource only for migrations; business use cases and runtime
-persistence adapters MUST NOT use JDBC.
+transactions, XA, and native compilation MUST NOT be introduced speculatively.
 
-### III. Pure Clean Architecture
+### III. Pure Clean Architecture for Queries
 
-Dependencies MUST point inward through Domain, Application, Inbound Adapters, Outbound
-Adapters, and Infrastructure or framework configuration.
+Dependencies MUST point inward through:
 
-The Domain layer MUST contain behavior-rich aggregates, entities, value objects, domain
-services, policies, invariants, exceptions, and only required domain events. It MUST be
-synchronous, deterministic, and independent of infrastructure. It MUST NOT depend on
-Quarkus, Jakarta REST or Persistence, Hibernate, Panache, Vert.x, PostgreSQL, Flyway,
-Jackson, OpenAPI, security or logging frameworks, transport DTOs, persistence entities,
-configuration classes, or Mutiny types in entities or value objects. Public constructors
-MUST NOT create invalid domain objects. Business-significant primitives SHOULD be value
-objects, including CountryCode, Alpha2Code, Alpha3Code, NumericCountryCode,
-CanonicalDivisionCode, LanguageTag, IdentifierSchemeCode, ValidityPeriod,
-SourceAuthority, and SourceRevision.
+1. Domain.
+2. Application.
+3. Inbound adapters.
+4. Outbound adapters.
+5. Infrastructure.
 
-The Application layer MUST own use cases, commands, queries, services, input and output
-ports, transaction orchestration, authorization decisions, application validation, and
-application-to-domain mapping. It MAY depend on Mutiny. It MUST NOT depend on Quarkus
+The Domain layer MUST contain immutable or behavior-rich read-domain concepts, value
+objects, validation rules, hierarchy semantics, lifecycle and temporal interpretation,
+and domain exceptions. It MUST be synchronous, deterministic, and independent of
+infrastructure. Public construction MUST NOT create invalid domain values.
+
+The Domain layer MUST NOT depend on Quarkus, Jakarta REST, Jakarta Persistence,
+Hibernate, Panache, Vert.x, PostgreSQL, Flyway, Jackson, OpenAPI, transport DTOs,
+persistence entities, configuration or logging frameworks, or Mutiny inside domain
+entities or value objects. Business-significant primitives SHOULD be value objects,
+including `Alpha2Code`, `Alpha3Code`, `NumericCountryCode`,
+`CanonicalDivisionCode`, `LanguageTag`, `IdentifierSchemeCode`, `ValidityPeriod`,
+`SourceAuthority`, and `SourceRevision`, because their normalization and validation are
+domain rules.
+
+The Application layer MUST contain query use cases, query input ports, repository output
+ports, result models, authorization decisions for reads, application validation, and
+query orchestration. It MUST NOT contain commands that mutate geographic data. Its
+vocabulary SHOULD use `Query`, `Find`, `Get`, `List`, `Search`, `Resolve`, `Browse`, and
+`Navigate` because these names reveal read intent.
+
+Application vocabulary MUST NOT introduce mutation-oriented use cases named `Create`,
+`Update`, `Delete`, `Activate`, `Deprecate`, `Retire`, `Import`, `Publish`, `Apply`, or
+`Approve`. The Application layer MAY depend on Mutiny, but MUST NOT depend on Quarkus
 runtime APIs, REST resources, Hibernate sessions, Panache repositories, Vert.x clients,
 PostgreSQL-specific classes, Flyway, transport DTOs, or persistence entities.
 
-Inbound adapters MUST translate external inputs to application commands or queries.
-Outbound adapters MUST implement application ports. Framework concerns MUST remain in
-adapters. REST resources MUST NOT contain business rules or access persistence directly.
-Persistence adapters MUST NOT decide domain policy. Transport DTOs and persistence
-entities MUST NOT be domain models.
+Application query use cases performing I/O MUST return Mutiny `Uni<T>`. Ordinary bounded
+lists MUST return `Uni<PageResult<T>>`. `Multi<T>` MUST be limited to a confirmed
+streaming requirement and MUST NOT be used for ordinary relational pagination.
 
-Architecture tests MUST enforce package and dependency rules and MUST fail the build for
-inward-dependency violations, domain framework imports, REST-to-persistence access,
-persistence entities exposed through REST, Panache domain entities, direct repository or
-session injection into use cases, or other prohibited coupling. The service SHOULD begin
-as one deployable Gradle module with package-level boundaries. A multi-module build MUST
-NOT be introduced solely to mirror layers.
+Inbound REST adapters MUST invoke application query ports and MUST NOT access Hibernate
+Reactive repositories or PostgreSQL clients directly. Outbound persistence adapters MUST
+implement domain-oriented query repository ports. Persistence entities and REST DTOs
+MUST remain separate from domain and application models. Repository ports MUST NOT
+expose generic CRUD, mutation methods, unbounded `findAll()`, HQL, SQL, Panache queries,
+or persistence entities.
 
-### IV. End-to-End Reactive Execution
+Architecture tests MUST enforce dependency direction and all read-only rules. They MUST
+fail for domain framework imports, REST-to-persistence access, persistence entities
+exposed through REST, Panache domain entities, mutation use cases or repositories, write
+REST methods, runtime JDBC, startup Flyway execution, or direct resource-to-persistence
+dependencies. The service SHOULD remain one deployable Gradle module with package-level
+boundaries unless independent compilation has a demonstrated benefit.
 
-All runtime I/O in the request path MUST be non-blocking end to end and MUST use Mutiny
-consistently. Asynchronous application use cases and output ports MUST return `Uni<T>` or
-`Uni<Void>`. `Multi<T>` MUST be used only for genuine streaming. Ordinary listings MUST
-use bounded pagination and `Uni<PageResult<T>>`.
+### IV. Reactive Read Execution
 
-Event-loop threads MUST NOT execute blocking JDBC, blocking file operations, synchronous
-network or SDK calls, thread sleeps, or unbounded CPU-intensive computation. Application
-and adapter code MUST NOT use `await().indefinitely()`, `CompletionStage.get()`,
-`Future.get()`, `Thread.sleep(...)`, `Thread.join()`, manual blocking locks around
-reactive flows, or manual `subscribe().with(...)` in resources, use cases, or
-repositories. Fire-and-forget work MUST NOT be used without an approved reliability
-mechanism. Pipelines MUST be returned to Quarkus for subscription, and failures MUST
-propagate through them.
+All runtime I/O MUST be non-blocking. Runtime database access MUST use Hibernate Reactive
+or the Vert.x Reactive PostgreSQL Client.
+
+The application MUST NOT use blocking Hibernate ORM, runtime JDBC,
+`await().indefinitely()`, `Future.get()`, `CompletionStage.get()`, `Thread.sleep(...)`,
+`Thread.join()`, manual `subscribe().with(...)` in resources, use cases, or repositories,
+or blocking file or network operations on event-loop threads. Reactive pipelines MUST be
+returned to Quarkus for subscription, and failures MUST propagate through those
+pipelines.
+
+Queries using one Hibernate Reactive session MUST sequence session operations safely.
+Concurrent work MUST NOT share one reactive session. Ordinary queries SHOULD use
+explicit reactive sessions when required by the persistence adapter.
+
+Write transactions are not part of the runtime application. A read-only transaction MAY
+be used only when a query requires a consistent multi-query snapshot and the plan
+documents why one statement is insufficient. The application MUST NOT maintain database
+transactions across external calls or long-running work.
 
 Reactive errors MUST retain the original cause, a stable application error code, trace
 correlation, a safe external response, and non-confidential diagnostic context.
-Operations sharing a Hibernate Reactive session or transaction MUST be sequenced.
-Concurrent operations MUST NOT share a session. Parallel persistence composition in one
-session MUST NOT be used unless isolation and session behavior are proven safe.
 
-### V. Domain and Data Integrity
+### V. Reference-Data Integrity and Temporal Semantics
 
-Aggregate boundaries MUST follow transactional consistency, not foreign-key shape. The
-full hierarchy MUST NOT be one aggregate, and a country MUST NOT load all divisions for
-ordinary invariants. Expected aggregate candidates are Country,
-AdministrativeDivisionType, AdministrativeDivision, and, when introduced,
-CatalogRelease and ImportRun. A division MAY reference its parent by identity.
+PostgreSQL constraints MUST remain the final integrity boundary even though writes occur
+only through controlled migrations. SQL migrations MUST preserve valid ISO country-code
+formats, country-code uniqueness, canonical division-code uniqueness, same-country
+parent relationships, valid hierarchy-level transitions, valid root levels, cycle
+prohibition, external identifier uniqueness, preferred-name uniqueness, temporal-range
+validity, source provenance, and historical identifier non-reuse.
 
-Domain validation, application orchestration, database constraints, and deferred
-constraint triggers when unavoidable MUST collectively prevent self-parenting,
-cross-country parenting, invalid level transitions or root levels, cycles, duplicate
-canonical codes within scope, duplicate external identifiers within scheme and scope,
-multiple active preferred names for one entity and language, invalid temporal ranges, and
-negative optimistic-lock versions. Database constraints MUST be the final integrity
-boundary; application validation MUST NOT substitute for them.
+The fact that data is loaded through scripts MUST NOT justify removing database
+constraints. Migration tests MUST prove invalid reference data is rejected. The full
+hierarchy MUST NOT be loaded as one aggregate or read model merely to enforce integrity.
+A country MUST NOT load all divisions for ordinary query behavior.
 
-Lifecycle semantics MUST explicitly define allowed and forbidden transitions, visibility,
-update permission, historical queries, and referential consequences for `DRAFT`,
-`ACTIVE`, `DEPRECATED`, and `RETIRED`. Temporal validity MUST use half-open intervals:
-`valid_from` inclusive and `valid_until` exclusive, with null `valid_until` meaning no
-known end. Periods MUST satisfy
-`valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from`. Lifecycle and
-temporal validity MUST NOT be interchangeable, and specifications MUST define legal
-combinations. A record MAY be operationally deprecated while remaining historically
-valid.
+Lifecycle and temporal fields MAY remain because they describe reference-data state and
+history even though the application cannot modify them:
 
-Activated records MUST NOT be physically deleted, and historical data MUST remain
-traceable. Physical deletion MAY apply only to never-activated records when an approved
-specification defines it.
+- `DRAFT` records MUST be treated as migration-stage data and MUST NOT be returned by
+  normal runtime queries.
+- `ACTIVE` records MUST be returned by current-catalog queries.
+- `DEPRECATED` records MAY be returned only according to explicit endpoint and temporal
+  semantics.
+- `RETIRED` records MUST be excluded from ordinary current-catalog listings but MAY be
+  resolved by approved historical queries.
 
-Internal database identifiers MUST be UUIDs; UUID version 7 SHOULD be used when supported
-by the approved PostgreSQL baseline. Internal UUIDs MUST NOT automatically become the
-preferred public identifiers. Public references SHOULD use stable domain codes. Each
-public code's semantics, normalization, character set, and uniqueness scope MUST be
-specified. Retired codes MUST NOT be silently reused, and historical resolution MUST be
-preserved under approved temporal rules.
+Temporal validity MUST use half-open intervals: `valid_from` is inclusive,
+`valid_until` is exclusive, and null `valid_until` means no known end. Periods MUST
+satisfy `valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from`.
+Current-data queries MUST apply lifecycle and temporal rules consistently. Historical
+queries MUST use an explicit `asOf` date or an explicitly historical endpoint.
 
-### VI. Migration-Controlled PostgreSQL
+Internal database identifiers MUST be UUIDs; UUID version 7 SHOULD be used when
+PostgreSQL 18 support and project tooling make it practical. Internal UUIDs MUST NOT
+automatically become preferred public identifiers. Public references SHOULD use stable
+domain codes. Every public code's normalization, character set, semantics, and
+uniqueness scope MUST be specified. Retired codes MUST NOT be silently reused, and
+historical resolution MUST follow approved temporal rules.
 
-PostgreSQL MUST be the persisted source of truth. Runtime access MUST use Hibernate
-Reactive with Panache repository pattern or justified SQL through the Vert.x Reactive
-PostgreSQL Client. Active Record MUST NOT be used. Application repository ports MUST
-express domain intent and MUST NOT expose generic CRUD, `save(Object)`, unbounded
-`findAll()`, HQL, SQL, Panache queries, or persistence entities.
+### VI. Controlled SQL Catalog Maintenance
 
-State-changing commands MUST run in explicit reactive transactions. Queries SHOULD use an
-explicitly managed reactive session when required. Transactions MUST NOT remain open
-across calls to other services or brokers, user interaction, unbounded streams, or
-long-running file or network work. Distributed transactions and XA MUST NOT be used.
-Atomic database change and event publication MUST use a transactional outbox or another
-approved local-transaction pattern; an outbox for this context MUST belong to this
-service.
+PostgreSQL MUST be the persisted source of truth for geographic reference data.
+Countries, administrative divisions, localized names, identifiers, lifecycle statuses,
+temporal validity, and source provenance MUST be loaded and modified exclusively through
+reviewed, version-controlled SQL scripts. All schema and reference-data changes MUST use
+immutable Flyway migrations. Previously applied migrations MUST NOT be edited. Every
+correction or catalog revision MUST use a new migration.
 
-Flyway MUST be the only schema-evolution mechanism. Every schema change MUST be an
-immutable versioned migration. Applied migrations MUST NOT be edited; correction MUST use
-a new migration. Production MUST validate the schema and MUST NOT use `drop-and-create`,
-`update`, or uncontrolled automatic DDL.
+Migration names SHOULD reveal their immutable sequence and purpose, for example:
 
-Migrations MUST be deterministic, reproducible on clean environments, data-preserving,
-explicitly name indexes and constraints, include required indexes and constraints, avoid
-destructive changes without an approved strategy, and document rollback or recovery when
-rollback is unsafe. Every migration MUST be tested on the approved PostgreSQL version
-from both an empty database and the previous supported schema with representative data,
-including failure and recovery behavior. Flyway JDBC configuration MUST remain isolated
-from reactive runtime persistence.
+- `V001__create_geographic_schema.sql`
+- `V002__load_iso_3166_country_catalog.sql`
+- `V003__load_ecuador_administrative_divisions.sql`
+- `V004__apply_iso_3166_revision_2026_01.sql`
+- `V005__apply_ecuador_dpa_revision_2026_06.sql`
 
-### VII. Contract-First Integration
+Large datasets MAY be stored in separate repository-controlled SQL or CSV resources when
+Flyway executes and validates them deterministically.
 
-Every externally accessible HTTP capability MUST be contract-first. The canonical OpenAPI
-contract MUST be committed and updated before implementation; generated runtime
-documentation MUST NOT be the sole contract. It MUST define paths, methods, authentication,
-authorization scopes, request and response schemas, required fields, validation, status
-codes, bounded pagination, filtering, sorting, errors, examples, idempotency, concurrency,
-and versioning.
+Catalog scripts MUST be deterministic, repeatable from a clean database, reviewed
+through source control, traceable to an official or approved internal source, validated
+before production execution, tested against PostgreSQL 18, executed atomically when the
+revision requires all-or-nothing behavior, accompanied by an explicit recovery strategy,
+and protected against partial catalog activation. Scripts MUST be idempotent only when
+explicitly designed as repeatable migrations.
 
-REST APIs MUST use resource nouns and explicit lifecycle commands when CRUD semantics are
-insufficient. Generic CRUD MUST NOT replace domain behavior. Breaking changes MUST use an
-approved versioning strategy and MUST NOT silently break consumers.
+The project MUST NOT rely on manually edited production rows. Direct ad hoc SQL against
+production MUST NOT be the normal catalog-maintenance process. Emergency corrections
+MUST still produce a repository migration immediately and MUST follow the approved
+incident and change-management process.
 
-HTTP behavior MUST follow protocol semantics. Errors MUST use
-`application/problem+json` conforming to RFC 9457 and include a stable problem type,
+The runtime application database identity MUST have read-only access. It MUST receive
+only privileges required for approved queries, normally `CONNECT` on the geographic
+database, `USAGE` on the geographic schema, `SELECT` on approved tables or views, and
+`USAGE` or `SELECT` on a sequence only when genuinely necessary for a read.
+
+The runtime role MUST NOT have `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `CREATE`,
+`ALTER`, `DROP`, `REFERENCES`, `TRIGGER`, `EXECUTE` on mutation-capable
+procedures, ownership of schemas, tables, sequences, or functions, or membership in
+privileged PostgreSQL roles.
+
+Flyway and catalog migrations MUST execute with a separate migration identity available
+only to the controlled deployment or migration process. The application runtime MUST
+NOT receive the migration credential and MUST NOT run Flyway automatically at startup
+using its runtime identity.
+
+Migrations SHOULD execute as a dedicated CI/CD stage or controlled one-shot deployment
+unit before the new application version becomes ready because this isolates elevated
+credentials from the long-running service. A Podman Quadlet deployment MAY run
+migrations through a dedicated one-shot systemd or container unit using the migration
+identity. The application service MUST start with the read-only runtime identity only
+after migrations complete successfully.
+
+### VII. Query-Focused Contract-First API
+
+The canonical OpenAPI contract MUST be committed and updated before endpoint
+implementation. The API MUST contain only read operations. Expected capabilities MAY
+include:
+
+- Listing active countries.
+- Resolving a country by alpha-2, alpha-3, or numeric ISO code.
+- Retrieving localized and historical country names.
+- Listing administrative-division types for a country.
+- Listing root administrative divisions or direct children of a division.
+- Retrieving a division by canonical code.
+- Resolving a division by an external identifier.
+- Retrieving ancestors or bounded descendants.
+- Searching divisions with approved name-search semantics.
+- Querying historical validity through an approved `asOf` parameter.
+
+The contract MUST define paths, query parameters, validation, bounded pagination,
+maximum page size, sorting, filtering, language negotiation or explicit language
+parameters, temporal query semantics, HTTP caching behavior, error responses, versioning,
+access requirements, and examples.
+
+The API MUST NOT contain write request schemas, define idempotency keys for read
+operations, or define optimistic write concurrency using `If-Match`. ETag MAY be used
+only for HTTP cache validation of read responses. When ETag is used, `GET` MAY accept
+`If-None-Match`, an unchanged resource SHOULD return `304 Not Modified` to avoid
+transferring an identical representation, and ETag MUST NOT imply caller update rights.
+`Last-Modified` and `If-Modified-Since` MAY be used when reliable catalog revision dates
+exist.
+
+HTTP errors MUST use RFC 9457 `application/problem+json` with a stable problem type,
 title, status, safe detail, machine-readable application error code, request or instance
 reference when appropriate, and trace or correlation identifier. Responses MUST NOT
 expose stack traces, SQL, credentials, or confidential configuration.
 
-Mutable resources MUST use optimistic concurrency. Persistence versions MUST be exposed
-as ETags or an approved equivalent, `If-Match` MUST be required where lost updates are
-possible, and stale versions MUST produce `412 Precondition Failed` or another explicitly
-documented protocol-compliant response. Retriable commands MUST specify idempotency.
-Idempotency keys MUST define scope, retention, payload consistency validation,
-deterministic replay, and reuse protection.
+The contract MUST define stable errors for invalid country code format, country not
+found, administrative division not found, identifier not found, invalid language tag,
+unsupported identifier scheme, invalid temporal query date, invalid pagination, a page
+size above the configured maximum, invalid hierarchy depth, temporary database
+unavailability, and unauthorized or forbidden access when authentication applies.
 
-Messaging MUST NOT be introduced without a confirmed consumer or reliability
-requirement. Row-by-row integration events MUST NOT be emitted without a concrete use
-case; catalog-release publication SHOULD be the bulk-update event. Event contracts MUST
-be machine-readable, using AsyncAPI or an approved equivalent, before implementation and
-MUST include identifier, type, version, occurrence time, producer, catalog revision,
-affected scope, and applicable correlation metadata. Consumers MUST assume at-least-once
-delivery unless stated otherwise, and handlers MUST be idempotent.
+Write-specific errors MUST NOT appear, including optimistic concurrency conflict, stale
+update, duplicate creation, invalid lifecycle transition, idempotency-key conflict,
+import failure, or publication conflict.
 
-### VIII. Security, Auditability, and Provenance
+### VIII. Read Access, Audit, and Provenance
 
-Security MUST apply least privilege. Administrative endpoints MUST authenticate and
-authorize principals through explicit scopes or permissions for geographic reads,
-catalog management, import execution, and release publication as applicable. Every
-specification MUST explicitly decide public or internal read access. Tokens MUST be
-validated under the approved identity architecture.
+Read-only MUST NOT be interpreted as automatically public. The first API specification
+MUST explicitly decide the access model. The service SHOULD be internal by default to
+minimize its network and consumer trust boundary unless an approved architecture exposes
+it externally. External exposure MUST pass through the approved F5, reverse proxy, or
+gateway.
 
-Audit identities MUST come from the validated principal. `created_by`, `updated_by`, and
-equivalent fields MUST NOT be accepted from request bodies, untrusted headers, query
-parameters, or client metadata. Audit records MUST preserve opaque immutable subject
-identifiers; display names MAY be auxiliary.
+No application administrative permission exists because there are no administrative
+endpoints. When authentication is required, the application SHOULD use a read permission
+such as `geographic-reference.read` because authorization vocabulary MUST match the
+runtime capability.
 
-Secrets MUST NOT be committed. They MUST be supplied through Podman secrets, environment
-references, or an approved secret manager. Logs MUST NOT contain passwords, access or
-refresh tokens, credential-bearing connection strings, secret keys, or full confidential
-payloads.
+The service MUST NOT define runtime permissions such as
+`geographic-reference.create`, `geographic-reference.update`,
+`geographic-reference.delete`, `geographic-reference.import`,
+`geographic-reference.publish`, or `geographic-reference.manage`.
 
-Every externally sourced geographic record MUST persist source authority, reference,
-revision, and applicable import or publication context; provenance MUST NOT exist only in
-logs. Controlled imports MUST separate validation, comparison or diff, application, and
-publication. A partially failed import MUST NOT activate a catalog release. Publication
-MUST identify one coherent revision, and validation results and reports MUST be
-deterministic and traceable. Source files SHOULD use checksums, and applicable licensing
-or usage restrictions SHOULD be recorded.
+Database credentials MUST be supplied through approved secret-management mechanisms.
+Secrets MUST NOT be committed. Logs MUST NOT expose credentials, tokens, credential-
+bearing connection strings, secret keys, confidential infrastructure information, or
+full confidential payloads.
 
-### IX. Test-First Verification
+Runtime HTTP queries MUST NOT update audit columns. When retained, `created_by` and
+`updated_by` MUST identify the controlled migration, deployment principal, or catalog
+maintenance process that produced the row version and MUST NOT represent an HTTP caller.
+Controlled values MAY include `flyway`, `catalog-migration`,
+`deployment:<pipeline-id>`, or `source:<authority>:<revision>`.
 
-Business-critical behavior MUST be implemented test-first. Required tests MUST exist,
-MUST initially demonstrate the missing behavior when practical, and MUST pass before a
-feature is complete.
+Source provenance MUST remain persisted with catalog records. Every catalog data
+migration MUST identify, directly or through associated metadata, the source authority,
+source reference, source revision, effective date when applicable, repository migration
+version, and checksum or source digest when available.
 
-Domain unit tests MUST cover value objects, aggregate invariants, lifecycle, temporal
-validity, hierarchy policy, identifier normalization, and domain errors without Quarkus
-or PostgreSQL. Application tests MUST cover orchestration, ports, authorization, error
-mapping, reactive failure propagation, idempotency, and transaction boundaries.
+A runtime audit trail for successful `GET` requests is not required unless an approved
+security or regulatory requirement demands it. Operational access logs MAY record route,
+status, duration, caller identity, and trace identifier, but MUST NOT duplicate complete
+response payloads.
 
-Persistence integration tests MUST use the approved real PostgreSQL engine or an
-ephemeral compatible PostgreSQL instance, never an in-memory substitute. They MUST cover
-Flyway, constraints, partial indexes, deferred triggers, recursive queries, optimistic
-concurrency, rollback, uniqueness, temporal constraints, and reactive session behavior.
-API contract tests MUST prove runtime conformance to committed OpenAPI for success,
-validation, authentication, authorization, not-found, conflict, concurrency, idempotent
-retry, and Problem Details behavior.
+### IX. Test-First Query and Migration Verification
 
-Architecture tests MUST enforce dependency rules. Migration tests MUST cover empty and
-upgrade paths, representative data, repeatability, failure, and recovery. Reactive tests
-MUST detect event-loop blocking, synchronous database access, manual subscriptions,
-unhandled failures, session misuse, and invalid concurrent transaction use. Native tests
-MUST NOT be required unless an approved ADR changes the runtime to native.
+The project MUST implement test-first verification for query behavior. Required tests
+MUST initially demonstrate missing behavior when practical and MUST pass before a feature
+is complete.
 
-### X. Observable, Measured Operations
+Domain tests MUST cover code normalization, language-tag validation, temporal validity
+interpretation, lifecycle visibility, hierarchy-navigation rules, and identifier
+resolution semantics.
 
-The service MUST provide liveness, readiness, startup checks when needed, structured JSON
-logs, request correlation, distributed tracing, metrics, graceful shutdown, actionable
-diagnostics, and version and build metadata. Health endpoints MUST NOT expose secrets.
-Readiness MUST fail when requests cannot be processed safely. Liveness MUST NOT fail only
-because a temporary downstream dependency is unavailable.
+Application tests MUST cover query orchestration, not-found behavior, filter and
+pagination validation, language fallback, temporal query behavior, reactive failure
+propagation, and security checks when applicable.
 
-Every request SHOULD carry a correlation or trace identifier. Metrics SHOULD cover
-request duration, volume and errors; database pool use and acquisition time; and, when
-applicable, import duration, validation failures, and publication results.
+Persistence integration tests MUST use real PostgreSQL 18 or an approved ephemeral
+PostgreSQL 18 instance. They MUST cover reactive reads, recursive hierarchy queries,
+identifier and name resolution, bounded pagination, query indexes and plans when
+performance-sensitive, database-role read-only enforcement, and rejection of `INSERT`,
+`UPDATE`, and `DELETE` with the runtime credential.
 
-Performance requirements MUST derive from measured or approved workloads and MUST NOT be
-invented. Performance-sensitive specifications MUST identify expected catalog size,
-request volume, page limit, hierarchy depth, access patterns, import size, concurrency,
-response objectives, and resource limits. Pagination and result sets MUST be bounded;
-unbounded `findAll` and JSON responses MUST NOT be used. Indexes MUST follow query
-patterns. Caches MUST require measured evidence. Recursive queries SHOULD precede
-denormalized hierarchy structures. Closure tables, materialized paths, or `ltree` MUST
+Migration tests MUST cover clean database creation, initial catalog loading, upgrade from
+the previous supported schema and dataset revision, constraint enforcement, atomic
+failure behavior, recovery behavior, catalog provenance, and deterministic data counts
+or checksums when appropriate.
+
+API contract tests MUST prove only `GET`, `HEAD`, and required `OPTIONS` operations are
+exposed; `POST`, `PUT`, `PATCH`, and `DELETE` are unavailable; runtime behavior matches
+OpenAPI; pagination is bounded; RFC 9457 errors are returned; cache validation works when
+enabled; and security behavior matches the contract.
+
+Architecture tests MUST prove Clean Architecture dependency direction, the absence of
+mutation use cases and mutation repository methods, the absence of write REST methods,
+the absence of runtime JDBC and application-startup Flyway execution, and the absence of
+direct resource-to-persistence dependencies.
+
+Reactive tests MUST detect event-loop blocking, manual subscription, blocking database
+access, reactive session misuse, and unhandled failures. Native tests MUST NOT be
+required unless an approved constitutional amendment and ADR change the runtime.
+
+### X. Observable and Bounded Read Operations
+
+The service MUST expose liveness, readiness, startup checks when required, structured
+JSON logs, trace correlation, metrics, graceful shutdown, version metadata, application
+build revision, and catalog dataset revision when available. Health endpoints MUST NOT
+expose secrets. Readiness MUST fail when approved queries cannot be served safely or the
+expected schema or catalog revision is unavailable. Liveness MUST NOT fail solely
+because a temporary dependency is unavailable.
+
+Metrics SHOULD include request count, request duration, error count, database pool
+utilization, reactive connection acquisition duration, query count by route category,
+not-found count, and current catalog revision because these signals describe the
+runtime's actual responsibilities. Import, publication, command, and write-transaction
+metrics MUST NOT exist in the runtime.
+
+Performance requirements MUST derive from approved workloads and MUST NOT be invented.
+All collection endpoints MUST use bounded pagination, and maximum page sizes MUST be
+contractually defined. Recursive hierarchy queries MUST have explicit depth and result
+bounds. The application MUST NOT expose unbounded `findAll()` behavior.
+
+Indexes MUST correspond to actual query patterns. Caching MUST NOT be introduced without
+measurement. HTTP cache validation SHOULD be evaluated before Redis or another
+distributed cache because the API is read-only and protocol caching is simpler.
+
+If a local in-memory cache is proposed, it MUST define invalidation based on catalog
+revision or application restart, maximum size, expiration, consistency implications,
+resource limits, benchmark evidence, and an ADR when materially architectural.
+Denormalized hierarchy structures, closure tables, materialized paths, or `ltree` MUST
 NOT be introduced without evidence and an ADR.
 
-### XI. Reproducible JVM Delivery
+### XI. Separated Migration and JVM Delivery
 
-Production MUST run the Java 25 JVM artifact as a long-running service. Native compilation
-MUST NOT be adopted by preference. A native-runtime amendment requires a documented
-problem, an ADR, JVM/native benchmarks for startup, steady-state throughput, memory, and
-build time, compatibility checks, native integration tests, and operational acceptance.
+The deployment pipeline MUST follow this order:
+
+1. Validate SQL migrations.
+2. Back up or establish the approved recovery point when required.
+3. Execute Flyway with the migration identity.
+4. Verify schema and catalog integrity.
+5. Start or restart the application with the read-only runtime identity.
+6. Execute readiness and smoke tests.
+7. Promote traffic through the approved F5, proxy, or gateway.
+
+Migration failure MUST prevent application promotion. The application MUST NOT become
+ready when its expected schema or catalog revision is unavailable.
+
+Production MUST run the Java 25 JVM artifact as a long-running service. Native
+compilation MUST NOT be adopted by preference. A future native-runtime proposal requires
+a constitutional amendment, an ADR, JVM/native benchmarks, compatibility checks, native
+integration tests, and operational acceptance.
 
 The Gradle Wrapper MUST be committed. Dependencies SHOULD use the Quarkus platform BOM
-where supported. Versions MUST NOT be duplicated arbitrarily or use `+`,
+where supported to keep the approved stack coherent. Versions MUST NOT use `+`,
 `latest.release`, or unbounded ranges. Upgrades MUST include compatibility, test,
 migration when applicable, and security review. The build MUST be reproducible, MUST
 retain or generate an approved software bill of materials, and MUST remove unused
 dependencies.
 
-The service MUST produce an OCI-compatible, non-root JVM container. It MUST use a
-read-only filesystem where practical, persist no business data locally, receive secrets
-through approved mechanisms, expose only required ports, terminate gracefully, expose
-compatible health behavior, use deterministic production tags, and include build
-revision metadata.
-
-Deployment MUST support version-controlled rootless Podman Quadlet. Ports MUST NOT be
-published to untrusted networks without approval. External access MUST pass through the
-approved reverse proxy, load balancer, or F5 architecture. Database ports MUST NOT be
-public. Deployment configuration and source MUST remain separate from secrets.
+The application MUST remain independently deployable as an OCI-compatible, non-root JVM
+container through version-controlled rootless Podman Quadlet. The container MUST persist
+no business data locally, MUST receive only runtime secrets through approved mechanisms,
+MUST expose only required ports, MUST terminate gracefully, and MUST include build
+revision metadata. Ports MUST NOT be published to untrusted networks without approval.
+Database ports MUST NOT be public.
 
 ### XII. Simplicity and Explicit Decisions
 
-The simplest architecture satisfying approved requirements MUST be preferred. The
+The simplest architecture satisfying approved query requirements MUST be preferred. The
 project MUST NOT introduce speculative interfaces, generic abstractions without multiple
 concrete uses, generic CRUD layers, premature microservices, messaging, caching,
 denormalization, native compilation, multi-module decomposition, or framework wrappers
-without domain value. Abstractions MUST be justified by current requirements,
-testability, or a real boundary; possible future needs are insufficient.
+without domain value. Possible future needs are insufficient justification.
 
-The repository MUST maintain an accurate README, architecture overview, C4 context and
-container diagrams, API contract, database model, migration strategy, security model,
-deployment instructions, operational runbook, ADR directory, local-development guide,
-and testing guide. Current behavior and proposed intent MUST be distinguished. A change
-that invalidates documentation MUST update it in the same change.
+The repository MUST maintain accurate documentation for its README, architecture, C4
+context and container diagrams, API contract, database model, SQL catalog migration
+strategy, database identities, security model, deployment instructions, operational
+runbook, ADR directory, local-development guide, and testing guide. A change that
+invalidates documentation MUST update it in the same change.
 
-An ADR MUST document any constitutional-default change, major infrastructure, new
-datastore, messaging, caching, native runtime, hierarchy persistence change, API
-versioning change, eventual consistency, new security trust boundary, or accepted
-architectural risk. It MUST include context, decision, alternatives, consequences, risks,
-validation criteria, and a reversal strategy when applicable. An ADR MUST NOT override a
+English MUST remain the canonical language for source code, database objects, API
+contracts, configuration, logs, migrations, and technical documentation. Current
+behavior and proposed intent MUST be distinguished; future designs MUST be labeled
+proposed.
+
+An ADR MUST document a constitutional-default change, major infrastructure, new
+datastore, caching, native runtime, hierarchy persistence change, API versioning change,
+new security trust boundary, material migration strategy, or accepted architectural
+risk. It MUST include context, decision, alternatives, consequences, risks, validation
+criteria, and a reversal strategy when applicable. An ADR MUST NOT override a
 constitutional MUST or MUST NOT without a constitutional amendment.
 
 ## Engineering Standards
 
-### Specification and Design
+### Specification and Query Design
 
-Specifications MUST be written in English and MUST describe business capability and
-observable behavior before implementation detail, except where a constitutional
-constraint or correctness requires the detail. They MUST declare scope, non-goals,
-actors, scenarios, testable requirements, measurable success criteria, errors, security,
-transaction boundaries, and applicable temporal, contract, event, migration, performance,
-and deployment impact. They MUST NOT invent arbitrary targets or functionality.
+Specifications MUST focus on consuming-system query stories and observable read
+behavior. They MUST declare scope, non-goals, actors, read-access policy, scenarios,
+testable requirements, measurable success criteria, query errors, pagination, filtering,
+localization, temporal behavior, query consistency or snapshot semantics when needed,
+HTTP cache validation, contract impact, migration impact, performance, deployment, and
+documentation impact.
 
-Plans MUST translate approved requirements without changing scope. Every `plan.md` MUST
-contain the mechanical Constitution Check below before research and again after design.
-Tasks MUST be dependency-ordered and traceable to requirements and user scenarios.
-Implementation MUST NOT add capability absent from the approved specification.
+Every specification MUST contain an explicit Read-Only Enforcement section. It MUST state
+that only `GET`, `HEAD`, and required `OPTIONS` are exposed; `POST`, `PUT`, `PATCH`, and
+`DELETE` are not exposed; and catalog mutation occurs only through controlled SQL
+migrations. SQL catalog changes MUST be described as migration impact, not application
+functionality.
 
-### Data and Transactions
+Plans MUST translate approved query requirements without changing scope. Every
+`plan.md` MUST contain the mechanical Constitution Check below before research and again
+after design. Tasks MUST be dependency-ordered, test-first, and traceable to query
+requirements and consuming-system scenarios. Implementation MUST NOT add capability
+absent from the approved specification.
 
-Hierarchy integrity MUST use the minimum sufficient combination of domain rules,
-application orchestration, constraints, and deferred triggers. External calls, broker
-publication, and long work MUST occur outside database transactions. When required, an
-outbox record and its domain database change MUST commit in the same local PostgreSQL
-transaction.
+### Catalog Change Control
 
-### Contracts and Releases
+Schema or catalog changes MUST be delivered only as immutable Flyway migrations.
+Migration tests MUST precede migration implementation. Plans and tasks MUST cover source
+provenance, atomicity, recovery, deterministic validation, and separate database
+identities whenever a feature changes schema or reference data.
 
-OpenAPI or AsyncAPI contracts MUST precede their implementation. Release and import
-features MUST prevent partial publication and MUST preserve a coherent, identifiable
-catalog revision. Existing consumers MUST receive an explicit compatibility or versioning
-strategy before a breaking change.
+Application features MUST NOT model SQL catalog maintenance as an HTTP command,
+application use case, scheduled job, message consumer, import workflow, or publication
+workflow.
+
+### Query Consistency and Caching
+
+One query statement SHOULD provide a response snapshot when practical because it avoids
+unnecessary session and transaction complexity. A multi-query read-only transaction MAY
+be planned only for a documented consistent-snapshot requirement.
+
+Pagination, hierarchy depth, and result counts MUST remain bounded. Cache semantics MUST
+be explicit even when caching is not required. HTTP validation SHOULD be evaluated
+before application or distributed caching.
 
 ### Language and Documentation
 
-English MUST be the canonical language for source code, database objects, API and event
-contracts, configuration, logs, and technical documentation. Documentation MUST describe
-the current implementation; future designs MUST be labeled proposed.
+English MUST be canonical for every source, database, contract, configuration, log,
+migration, and technical-documentation artifact. Documentation MUST describe the current
+runtime as query-only and MUST NOT imply administrative, import, publication, or mutation
+capabilities.
 
 ## Quality Gates and Workflow
 
 ### Specification Readiness
 
 Implementation planning MUST NOT proceed while material ambiguity remains. Before task
-generation, a feature MUST have clear scenarios, explicit scope and non-goals, testable
-functional requirements, measurable success criteria based on approved evidence, defined
-error and security behavior, transaction boundaries, applicable temporal behavior,
-contracts, migration impact, and no unresolved high-severity contradiction.
-`tasks.md` MUST NOT be generated while blocking requirements or unjustified exceptions
-remain.
+generation, a feature MUST have query-focused scenarios, explicit scope and non-goals,
+testable functional requirements, measurable evidence-based success criteria, defined
+read access, error behavior, read-only enforcement, bounded query behavior, lifecycle
+and temporal visibility, applicable localization and caching semantics, contract and
+migration impact, and no unresolved high-severity contradiction.
+
+`tasks.md` MUST NOT be generated while blocking requirements remain or while any
+Constitution Check item is `FAIL`. A `FAIL` requires constitutional compliance or an
+explicit constitutional amendment; an ADR or local exception is insufficient.
 
 ### Required Verification
 
-Before merge, the project MUST pass compilation; domain and application unit tests;
-PostgreSQL persistence integration tests; API contract tests; architecture tests;
-migration tests; reactive tests; static analysis; dependency vulnerability scanning;
-secret scanning; formatting checks; container build; and deployment-manifest validation.
-A green build is necessary but MUST NOT substitute for compliance with the specification
-and this constitution.
+Before merge, the project MUST pass compilation; domain and application query tests;
+PostgreSQL 18 persistence integration tests; database-role privilege tests; OpenAPI
+contract and HTTP-method exclusion tests; architecture tests; migration tests when
+schema or catalog data changes; reactive tests; static analysis; dependency
+vulnerability scanning; secret scanning; formatting checks; container build; and
+deployment-manifest validation. A green build MUST NOT substitute for compliance with
+the approved specification and this constitution.
 
 ### Constitution Check
 
-Every plan MUST copy this checklist, record `PASS`, `FAIL`, or `N/A` with evidence for each
-item, and repeat it after Phase 1 design. Any `FAIL` MUST block progress unless a compliant
-exception is documented and approved.
+Every plan MUST copy this checklist and record `PASS`, `FAIL`, or `N/A` with concrete
+evidence before research and after design:
 
-- [ ] **Scope and ownership**: The capability is inside the bounded context; excluded
-      domains remain excluded; no `tenant_id`, shared schema, or cross-service database
-      foreign key is introduced.
-- [ ] **Technology baseline**: Java 25, Gradle Wrapper/Kotlin DSL, approved Quarkus LTS,
-      reactive persistence, PostgreSQL/Flyway, OpenAPI, JVM OCI, and Quadlet defaults are
-      preserved; every addition or deviation is justified.
-- [ ] **Architecture**: Domain, Application, Adapters, and Infrastructure dependencies
-      point inward; DTOs and persistence entities remain outside the domain; architecture
-      tests cover the boundaries.
-- [ ] **Reactive model**: Runtime I/O is non-blocking, uses returned Mutiny pipelines,
-      avoids prohibited blocking or manual subscription, and sequences session work.
-- [ ] **Persistence and transactions**: Repository ports are domain-oriented; reactive
-      transaction boundaries are explicit; no transaction spans external or long-running
-      work; any outbox is locally atomic.
-- [ ] **Domain integrity**: Aggregate boundaries and database constraints cover hierarchy,
-      uniqueness, lifecycle, temporal, and concurrency invariants without loading the
-      complete hierarchy.
-- [ ] **Identifiers and provenance**: UUID internals, stable public-code semantics,
-      non-reuse, historical resolution, and source provenance are defined where relevant.
-- [ ] **Migrations**: Every schema change has a new immutable Flyway migration, named
-      constraints and indexes, data-preserving/recovery strategy, and empty plus upgrade
-      PostgreSQL tests.
-- [ ] **HTTP contract**: Repository OpenAPI is updated first and covers security, schemas,
-      validation, bounded pagination, errors, examples, concurrency, idempotency, and
-      versioning.
-- [ ] **Errors and concurrency**: RFC 9457 Problem Details, stable error codes, safe
-      diagnostics, ETag/`If-Match`, and stale-update behavior are specified where relevant.
-- [ ] **Security and audit**: Least privilege, explicit access policy, validated-principal
-      audit identity, secret handling, and confidential-log exclusions are addressed.
-- [ ] **Imports, releases, and events**: Provenance, coherent publication, failure
-      isolation, machine-readable event contracts, idempotency, and local outbox atomicity
-      are addressed where relevant.
-- [ ] **Test-first coverage**: Domain, application, PostgreSQL persistence, contract,
-      architecture, migration, and reactive tests are planned before implementation.
-- [ ] **Performance**: Workload and limits are evidenced, pagination is bounded, indexes
-      follow access patterns, and caching or denormalization is supported by measurements
-      and an ADR where required.
-- [ ] **Operability**: Health semantics, structured logs, correlation, tracing, metrics,
-      graceful shutdown, and build metadata are planned.
-- [ ] **Build and delivery**: Wrapper/BOM/version rules, SBOM, JVM container hardening,
-      deterministic tags, rootless Quadlet, network boundaries, and manifest validation
-      are covered.
-- [ ] **Documentation and decisions**: Required documentation changes and mandatory ADRs
-      are included in scope.
-- [ ] **Simplicity and exceptions**: No speculative abstraction or infrastructure is
-      introduced; each SHOULD deviation and constitutional exception records principle,
-      reason, alternatives, risk, controls, approval, and review or removal date.
+- [ ] The capability is a geographic query inside the bounded context.
+- [ ] Only `GET`, `HEAD`, or required `OPTIONS` endpoints are introduced.
+- [ ] No `POST`, `PUT`, `PATCH`, `DELETE`, mutation job, or message consumer is
+      introduced.
+- [ ] Runtime PostgreSQL access is reactive and non-blocking.
+- [ ] Runtime PostgreSQL credentials have SELECT-only privileges.
+- [ ] Flyway and catalog SQL execute outside the runtime application identity.
+- [ ] Clean Architecture dependency direction is preserved.
+- [ ] Application ports and repositories expose only query operations.
+- [ ] OpenAPI is updated before implementation.
+- [ ] Pagination, depth, and result sizes are bounded.
+- [ ] Lifecycle and temporal visibility are defined.
+- [ ] Localization and fallback behavior are defined where applicable.
+- [ ] RFC 9457 query errors are defined.
+- [ ] HTTP caching behavior is defined or explicitly not required.
+- [ ] PostgreSQL query and migration tests use PostgreSQL 18.
+- [ ] SQL catalog changes are immutable, reviewed, traceable, and recoverable.
+- [ ] Database constraints continue to enforce reference-data integrity.
+- [ ] Architecture tests prohibit write endpoints and mutation use cases.
+- [ ] Reactive tests prohibit blocking and manual subscriptions.
+- [ ] Deployment separates migration and runtime database identities.
+- [ ] Observability, security, documentation, and operational changes are covered.
+- [ ] No speculative messaging, cache, native build, or other infrastructure is added.
+
+Any `FAIL` MUST block task generation unless this constitution is amended.
 
 ## Governance
 
 This constitution MUST govern every specification, plan, task, implementation, review,
-database migration, API or event contract, test, deployment artifact, and architectural
-decision in this repository. It supersedes conflicting local practice. Reviews MUST verify
-constitutional compliance, and non-compliance with a MUST or MUST NOT MUST block approval.
-A SHOULD or SHOULD NOT MAY be bypassed only with documented justification.
+database migration, API contract, test, deployment artifact, and architectural decision
+in this repository. It supersedes conflicting local practice. Reviews MUST verify
+constitutional compliance, and non-compliance with a MUST or MUST NOT MUST block
+approval. A SHOULD or SHOULD NOT MAY be bypassed only with documented justification.
 
-An exception MUST identify the violated principle, reason, alternatives, risk,
-compensating controls, required approval, and a removal or review date when temporary.
-Unjustified exceptions MUST block task generation. An ADR alone MUST NOT override a MUST
-or MUST NOT.
+An exception to a SHOULD or SHOULD NOT MUST identify the principle, reason, alternatives,
+risk, compensating controls, required approval, and a removal or review date when
+temporary. A MUST or MUST NOT conflict requires a constitutional amendment. An ADR alone
+MUST NOT override it.
 
 Amendments MUST be explicit and reviewable and MUST include the version change,
 ratification and amendment dates, change summary, affected templates or documentation,
-and compliance or migration actions for existing code. A specification, implementation,
+and compliance or migration actions for existing work. A specification, implementation,
 or ADR MUST NOT silently amend this constitution.
 
 Constitution versions MUST use semantic versioning:
@@ -496,10 +632,11 @@ Constitution versions MUST use semantic versioning:
 - **MINOR** MUST be used for a new mandatory principle or materially expanded guidance.
 - **PATCH** MUST be used for clarification that does not change intent.
 
-Each amendment MUST update the Sync Impact Report and all affected templates and guidance
-in the same change. Compliance MUST be checked during specification readiness, planning,
-task generation, implementation, review, migration review, and release approval.
+Each amendment MUST update the Sync Impact Report and all affected templates, Spec Kit
+skills, and guidance in the same change. Compliance MUST be checked during specification
+readiness, planning, task generation, implementation, review, migration review, and
+release approval.
 
 **Project**: Geographic Reference Service | **Status**: active
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-23 | **Last Amended**: 2026-07-23
+**Version**: 2.0.0 | **Ratified**: 2026-07-23 | **Last Amended**: 2026-07-24

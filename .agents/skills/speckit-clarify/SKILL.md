@@ -79,7 +79,7 @@ Execution steps:
    Domain & Data Model:
    - Entities, attributes, relationships
    - Identity & uniqueness rules
-   - Lifecycle/state transitions
+   - Lifecycle and temporal read visibility
    - Data volume / scale assumptions
 
    Interaction & UX Flow:
@@ -97,13 +97,19 @@ Execution steps:
 
    Integration & External Dependencies:
    - External services/APIs and failure modes
-   - Data import/export formats
+   - Catalog source/revision and immutable SQL migration impact
    - Protocol/versioning assumptions
 
    Edge Cases & Failure Handling:
    - Negative scenarios
    - Rate limiting / throttling
-   - Conflict resolution (e.g., concurrent edits)
+   - Repeated safe queries, cache validation, and catalog changes between requests
+
+   Read-Only Enforcement:
+   - Only GET, HEAD, and required OPTIONS are exposed
+   - POST, PUT, PATCH, DELETE, mutation jobs, and message consumers are explicitly absent
+   - Runtime credentials are SELECT-only and Flyway uses a separate external identity
+   - Query pagination, hierarchy depth, and result sizes are bounded
 
    Constraints & Tradeoffs:
    - Technical constraints (language, storage, hosting)
@@ -124,6 +130,9 @@ Execution steps:
    For each category with Partial or Missing status, add a candidate question opportunity unless:
    - Clarification would not materially change implementation or validation strategy
    - Information is better deferred to planning phase (note internally)
+   - The question would propose runtime mutation, administration, import, publication,
+     lifecycle commands, messaging, or another constitutionally prohibited capability;
+     report that conflict instead of treating it as an open product choice
 
 4. Generate (internally) a prioritized queue of candidate clarification questions (maximum 5). Do NOT output them all at once. Apply these constraints:
     - Maximum of 5 total questions across the whole session.

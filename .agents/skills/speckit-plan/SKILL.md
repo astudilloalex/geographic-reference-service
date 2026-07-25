@@ -61,7 +61,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
    - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
+   - Evaluate every gate mechanically as PASS, FAIL, or N/A with evidence
+   - ERROR on any FAIL; an ADR or local exception cannot approve a constitutional FAIL
+   - Prove the design introduces only GET, HEAD, or required OPTIONS and no POST, PUT,
+     PATCH, DELETE, mutation job, or message consumer
+   - Define SELECT-only runtime privileges and a separate external Flyway identity
+   - Define bounded pagination, hierarchy depth/results, catalog revision/provenance,
+     and query consistency or justified read-only snapshot semantics
    - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
    - Phase 1: Generate data-model.md, contracts/, quickstart.md
    - Re-evaluate Constitution Check post-design
@@ -137,12 +143,16 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Entity name, fields, relationships
    - Validation rules from requirements
-   - State transitions if applicable
+   - Lifecycle and temporal read visibility
+   - Query identifiers, localization fallback, and bounded relationships
 
 2. **Define interface contracts** (if project has external interfaces) → `/contracts/`:
    - Identify what interfaces the project exposes to users or other systems
    - Document the contract format appropriate for the project type
-   - Examples: public APIs for libraries, command schemas for CLI tools, endpoints for web services, grammars for parsers, UI contracts for applications
+   - For this service, define only GET, HEAD, and required OPTIONS operations and prove
+     POST, PUT, PATCH, and DELETE are absent
+   - Define bounded pagination/hierarchy behavior, localization, temporal semantics,
+     RFC 9457 errors, read access, and HTTP cache validation
    - Skip if project is purely internal (build scripts, one-off tools, etc.)
 
 3. **Create quickstart validation guide** → `quickstart.md`:
@@ -158,6 +168,10 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
 
 - Use absolute paths for filesystem operations; use project-relative paths for references in documentation
 - ERROR on gate failures or unresolved clarifications
+- Do not plan runtime mutation, administration, import, publication, outbox, messaging,
+  command idempotency, optimistic write concurrency, startup Flyway, or runtime JDBC
+- Treat catalog changes only as immutable Flyway SQL migration impact with PostgreSQL 18
+  tests, provenance, atomicity, recovery, and separate migration credentials
 
 ## Done When
 

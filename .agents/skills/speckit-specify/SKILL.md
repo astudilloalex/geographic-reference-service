@@ -126,14 +126,20 @@ Given that feature description, do this:
          - No reasonable default exists
        - **LIMIT: Maximum 3 [NEEDS CLARIFICATION] markers total**
        - Prioritize clarifications by impact: scope > security/privacy > user experience > technical details
-    4. Fill User Scenarios & Testing section
+    4. Fill User Scenarios & Testing with consuming-system query stories only
        If no clear user flow: ERROR "Cannot determine user scenarios"
     5. Generate Functional Requirements
        Each requirement must be testable
        Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
-       Explicitly define scope, non-goals, error behavior, security and access, transaction
-       boundaries, and applicable temporal, contract, migration, provenance, concurrency,
-       idempotency, import/release, event, and deployment behavior
+       Explicitly define scope, non-goals, read access, Read-Only Enforcement, query
+       consistency or snapshot semantics, bounded pagination/hierarchy/results,
+       filtering, sorting, localization fallback, lifecycle and temporal visibility,
+       RFC 9457 query errors, HTTP cache validation, OpenAPI impact, SQL migration and
+       provenance impact, separate database identities, and deployment behavior
+       State that only GET, HEAD, and required OPTIONS are exposed and that POST, PUT,
+       PATCH, DELETE, mutation jobs, and message consumers are absent
+       Treat every schema or catalog-data change as immutable SQL migration impact, not
+       runtime application functionality
     6. Define Success Criteria
        Create measurable, technology-agnostic outcomes
        Include quantitative performance or volume targets only when supplied by an
@@ -172,9 +178,14 @@ Given that feature description, do this:
       - [ ] Edge cases are identified
       - [ ] Scope is clearly bounded
       - [ ] Non-goals and bounded-context exclusions are explicit
-      - [ ] Error and security behavior are defined
-      - [ ] Transaction boundaries are defined where state changes
-      - [ ] Temporal, contract, migration, and deployment impacts are defined where applicable
+      - [ ] Read access and RFC 9457 query error behavior are defined
+      - [ ] Read-Only Enforcement states only GET, HEAD, and required OPTIONS are exposed
+      - [ ] POST, PUT, PATCH, DELETE, mutation jobs, and message consumers are excluded
+      - [ ] Query consistency and any justified read-only snapshot semantics are defined
+      - [ ] Pagination, hierarchy depth, and result sizes are bounded
+      - [ ] Filtering, sorting, localization fallback, and temporal visibility are defined
+      - [ ] HTTP cache validation is defined or explicitly not required
+      - [ ] OpenAPI, SQL migration/provenance, database identity, and deployment impacts are defined
       - [ ] Dependencies and assumptions identified
 
       ## Feature Readiness
@@ -322,8 +333,8 @@ When creating this spec from a user prompt:
 - Error handling: User-friendly messages with appropriate fallbacks
 - Authentication method: Follow the approved identity architecture and require explicit
   access and authorization decisions
-- Integration patterns: Contract-first Quarkus REST/OpenAPI; messaging only for a
-  confirmed consumer or reliability requirement
+- Integration patterns: Contract-first read-only Quarkus REST/OpenAPI with only GET,
+  HEAD, and required OPTIONS; no runtime messaging or mutation integration
 
 ### Success Criteria Guidelines
 
@@ -339,7 +350,7 @@ Success criteria must be:
 
 - "Users can complete checkout in under 3 minutes"
 - "The approved workload's maximum page size is enforced for every listing"
-- "Every supported lifecycle transition has an observable acceptance scenario"
+- "Every lifecycle and temporal visibility state has an observable query scenario"
 - "Task completion rate improves by 40%"
 
 **Bad examples** (implementation-focused):

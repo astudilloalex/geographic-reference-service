@@ -12,193 +12,251 @@
 
 ### In Scope
 
-- [Business capabilities and geographic records this feature owns]
+- [Geographic query capabilities and reference records consumed by other systems]
 
 ### Non-Goals
 
-- [Explicitly excluded behavior, including any bounded-context exclusions affected by
-  this request]
+- [Explicitly excluded query behavior and bounded-context exclusions]
+- Geographic schema and catalog mutation MUST occur only through reviewed, controlled SQL
+  migrations and MUST NOT be modeled as application functionality.
+- The runtime application MUST NOT provide administration, import, publication,
+  lifecycle-command, bulk-upload, database-maintenance, generic CRUD, scheduled mutation,
+  or message-consumer capabilities.
 
-### Actors and Access
+### Consuming Systems and Read Access
 
-- [Actor or consuming system, authentication requirement, authorization permission, and
-  whether read access is public or internal]
+- [Consuming system, business need, authentication requirement, read permission, and
+  whether access is internal or externally approved]
+
+## Read-Only Enforcement *(mandatory)*
+
+- **RO-001**: The HTTP API MUST expose only `GET`, `HEAD`, and `OPTIONS` when required by
+  infrastructure or protocol behavior.
+- **RO-002**: The HTTP API MUST NOT expose `POST`, `PUT`, `PATCH`, or `DELETE`.
+- **RO-003**: The feature MUST NOT introduce a mutation use case, mutation repository
+  method, scheduled mutation job, message consumer, or hidden write path.
+- **RO-004**: Runtime PostgreSQL access MUST use a SELECT-only identity.
+- **RO-005**: Flyway and catalog SQL MUST execute outside the runtime application identity.
+- **Evidence**: [OpenAPI paths/methods, architecture rules, database privilege tests, and
+  deployment identity separation that prove enforcement]
 
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
-  IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
-  Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
-  you should still have a viable MVP (Minimum Viable Product) that delivers value.
-
-  Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
-  Think of each story as a standalone slice of functionality that can be:
-  - Developed independently
-  - Tested independently
-  - Deployed independently
-  - Demonstrated to users independently
+  IMPORTANT: Prioritize independent consuming-system query journeys. Each story MUST
+  remain independently testable and MUST describe read behavior only.
 -->
 
-### User Story 1 - [Brief Title] (Priority: P1)
+### User Story 1 - [Resolve Geographic Reference] (Priority: P1)
 
-[Describe this user journey in plain language]
+[Describe how a consuming service resolves or retrieves geographic reference data]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Explain the consumer value and why this query is most important]
 
-**Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
-
-**Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
-2. **Given** [initial state], **When** [action], **Then** [expected outcome]
-
----
-
-### User Story 2 - [Brief Title] (Priority: P2)
-
-[Describe this user journey in plain language]
-
-**Why this priority**: [Explain the value and why it has this priority level]
-
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: [Describe the query, fixture catalog revision, and observable
+result that prove this story independently]
 
 **Acceptance Scenarios**:
 
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** [visible active catalog data], **When** [the consumer performs a permitted
+   query], **Then** [the expected bounded representation is returned]
+2. **Given** [invalid or missing query input], **When** [the consumer performs the query],
+   **Then** [the stable RFC 9457 error is returned]
 
 ---
 
-### User Story 3 - [Brief Title] (Priority: P3)
+### User Story 2 - [Browse Geographic Hierarchy] (Priority: P2)
 
-[Describe this user journey in plain language]
+[Describe how a consuming service lists or navigates bounded administrative divisions]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Explain the consumer value]
 
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: [Describe bounded pagination/depth verification]
 
 **Acceptance Scenarios**:
 
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** [a country or parent division], **When** [the consumer requests a bounded
+   listing], **Then** [only lifecycle- and temporally-visible results are returned]
 
 ---
 
-[Add more user stories as needed, each with an assigned priority]
+### User Story 3 - [Resolve Localized or Historical Data] (Priority: P3)
+
+[Describe localized-name fallback or explicit historical `asOf` behavior]
+
+**Why this priority**: [Explain the consumer value]
+
+**Independent Test**: [Describe localization or temporal boundary verification]
+
+**Acceptance Scenarios**:
+
+1. **Given** [localized or historical catalog data], **When** [the consumer supplies the
+   documented language or `asOf` input], **Then** [the documented resolution rules apply]
+
+---
+
+[Add more read-only user stories as needed, each with an assigned priority]
 
 ### Edge Cases
 
 <!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right edge cases.
+  ACTION REQUIRED: Replace placeholders with query-specific boundaries and failures.
 -->
 
-- What happens when [boundary condition]?
-- How does system handle [error scenario]?
-- What happens during concurrent or repeated requests?
-- What happens at lifecycle and temporal boundaries?
-- What happens after partial external, import, or migration failure?
+- What happens when [a code or identifier has valid syntax but is not found]?
+- How does the service handle [an invalid language tag or unsupported identifier scheme]?
+- What happens at page-size, page-token, hierarchy-depth, and result-count limits?
+- What happens at lifecycle and half-open temporal boundaries?
+- How do repeated safe requests behave for the same catalog revision?
+- What response is produced when PostgreSQL is temporarily unavailable?
+- How does readiness behave after a catalog migration fails or when the expected catalog
+  revision is unavailable?
 
 ## Requirements *(mandatory)*
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right functional requirements.
--->
-
 ### Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "resolve an active country by
-  alpha-2 code"]
-- **FR-002**: System MUST [validation, e.g., "reject an invalid canonical division code"]
-- **FR-003**: Authorized catalog managers MUST be able to [domain action, e.g., "activate
-  a validated draft division"]
-- **FR-004**: System MUST [data requirement, e.g., "persist source authority and revision"]
-- **FR-005**: System MUST [behavior, e.g., "preserve historical identifier resolution"]
+- **FR-001**: System MUST resolve an active country by ISO alpha-2 code.
+- **FR-002**: System MUST list active administrative divisions with bounded pagination.
+- **FR-003**: System MUST resolve a division by canonical code.
+- **FR-004**: System MUST resolve a division by external scheme and identifier.
+- **FR-005**: System MUST return localized preferred names using documented fallback
+  rules.
+- **FR-006**: System MUST exclude `DRAFT` and `RETIRED` records from current-catalog
+  queries.
+- **FR-007**: System MUST support approved historical queries using an explicit `asOf`
+  date when historical access is in scope.
+- **FR-008**: System MUST reject page sizes above the documented maximum.
+- **FR-009**: System MUST expose no mutation endpoints.
+- [Replace, remove, or extend these examples with requirements traceable to the requested
+  query feature.]
 
-*Example of marking unclear requirements:*
+*Example of marking a material unresolved decision:*
 
-- **FR-006**: Read access MUST be [NEEDS CLARIFICATION: public or authenticated internal
-  access has not been decided]
-- **FR-007**: Retriable commands MUST retain idempotency records for
-  [NEEDS CLARIFICATION: retention period not specified]
+- **FR-010**: Read access MUST be [NEEDS CLARIFICATION: public or authenticated internal
+  access has not been decided].
+
+### Query Behavior *(mandatory)*
+
+- **QR-001 Pagination**: [Define page model, default and maximum size, ordering stability,
+  invalid-page behavior, and maximum result count]
+- **QR-002 Filtering and Sorting**: [Define allowed filters, normalization, allowed sort
+  fields, direction, deterministic tie-breaker, and invalid values]
+- **QR-003 Hierarchy Bounds**: [Define maximum depth, maximum descendants, truncation or
+  rejection behavior, and cycle-safe semantics]
+- **QR-004 Localization**: [Define language input or negotiation, preferred-name
+  selection, fallback order, and invalid-language behavior]
+- **QR-005 Temporal Visibility**: [Define current-catalog lifecycle rules, explicit
+  historical `asOf` semantics, half-open interval behavior, and timezone/date rules]
+
+### Query Consistency and Snapshot Semantics *(mandatory)*
+
+- **QC-001**: [State whether one database statement supplies the response snapshot or
+  justify a multi-query read-only transaction for a consistent snapshot]
+- **QC-002**: [Define observable behavior if the catalog revision changes between
+  independent requests; do not introduce write concurrency or `If-Match`]
+
+### HTTP Cache Validation *(mandatory)*
+
+- **HC-001**: [Define ETag/`If-None-Match`, Last-Modified/`If-Modified-Since`, cache
+  headers, and `304` behavior, or explicitly state why HTTP cache validation is not
+  required]
+- **HC-002**: ETag, when used, MUST represent read-response cache validation and MUST NOT
+  imply caller update rights.
 
 ### Error Behavior *(mandatory)*
 
-- **ER-001**: System MUST [define observable error behavior and stable application error
-  code for each failure class]
-- **ER-002**: HTTP errors MUST [define RFC 9457 status, problem type, safe detail, and
-  retry behavior where applicable]
+- **ER-001**: System MUST define a stable application error code and RFC 9457 problem
+  type for every applicable invalid-input, not-found, access, limit, and temporary
+  database failure.
+- **ER-002**: HTTP errors MUST use `application/problem+json` with status, safe detail,
+  request or instance reference when appropriate, and trace or correlation identifier.
+- **ER-003**: [Map invalid code, missing country/division/identifier, invalid language,
+  unsupported scheme, invalid `asOf`, invalid pagination/depth, excessive page size,
+  database unavailable, and access failures that apply.]
+- **ER-004**: The specification MUST NOT define write-specific conflicts, stale-update,
+  duplicate-creation, lifecycle-transition, idempotency-key, import, or publication
+  errors.
 
-### Security and Audit *(mandatory)*
+### Security and Operational Access Logging *(mandatory)*
 
-- **SR-001**: [Define authentication, authorization scopes or permissions, and access
-  visibility]
-- **SR-002**: [Define principal-derived audit identity and confidential-data handling]
+- **SR-001**: [Define public or internal access, authentication, approved read permission,
+  gateway/F5 boundary, and unauthorized/forbidden behavior]
+- **SR-002**: [Define runtime and migration credential separation, secret handling, and
+  confidential-log exclusions]
+- **SR-003**: [Define route/status/duration/caller/trace access metadata if required;
+  successful GET auditing and full payload logging MUST NOT be assumed]
 
-### Transaction and Consistency Boundaries *(mandatory for state or data changes)*
+### Lifecycle and Temporal Behavior *(mandatory when catalog records are queried)*
 
-- **TR-001**: [Define the atomic state change, concurrency behavior, idempotency, and work
-  that MUST remain outside the transaction]
+- **LR-001**: [Define `DRAFT`, `ACTIVE`, `DEPRECATED`, and `RETIRED` read visibility for
+  current and historical queries]
+- **LR-002**: [Define `valid_from` inclusive, `valid_until` exclusive, null end, and
+  legal lifecycle/temporal combinations]
 
-### Lifecycle and Temporal Behavior *(include when applicable)*
+### Contract Impact *(mandatory for HTTP capabilities)*
 
-- **LR-001**: [Define allowed and forbidden lifecycle transitions, visibility, update
-  rights, historical queries, and legal temporal combinations]
+- **CR-001**: [Identify the canonical OpenAPI change, compatibility/versioning strategy,
+  paths, permitted read methods, query parameters, schemas, validation, bounds, errors,
+  caching, access requirements, and examples]
+- **CR-002**: Contract tests MUST prove `POST`, `PUT`, `PATCH`, and `DELETE` are absent
+  and unavailable.
 
-### Contract Impact *(include for HTTP or event capabilities)*
+### Data and Migration Impact *(mandatory)*
 
-- **CR-001**: [Identify the canonical OpenAPI or AsyncAPI contract change, compatibility
-  strategy, pagination, filtering, sorting, errors, idempotency, and concurrency]
+- **DR-001**: [State that no schema or catalog data changes are required, or identify
+  each immutable Flyway schema/catalog migration, official source, revision, provenance,
+  constraints, indexes, atomicity, recovery, and deterministic validation]
+- **DR-002**: [Define clean-database and previous-supported-revision migration tests when
+  migrations are required]
+- **DR-003**: SQL catalog changes MUST be treated as migration impact and MUST NOT become
+  runtime application functionality.
 
-### Data and Migration Impact *(include for persisted data changes)*
+### Key Read Models and Domain Concepts *(include if feature involves data)*
 
-- **DR-001**: [Define new or changed data, integrity rules, identifiers, provenance,
-  migration and recovery impact, and empty plus upgrade validation]
-
-### Key Entities *(include if feature involves data)*
-
-- **[Country or other aggregate]**: [What it represents and its business attributes]
-- **[Administrative division or related entity]**: [What it represents and its
-  identity-based relationships]
+- **[Country or value object]**: [Read-domain meaning, identifiers, normalization,
+  lifecycle/temporal visibility, and localized names]
+- **[Administrative division or query result]**: [Identity-based hierarchy
+  relationships, query limits, and consumer-visible attributes]
 
 ## Success Criteria *(mandatory)*
 
 <!--
   ACTION REQUIRED: Define measurable, technology-agnostic outcomes supported by the
-  described business need or an approved workload. Do not invent arbitrary performance
-  targets. If the feature is performance-sensitive, include the approved catalog size,
-  request volume, page size, hierarchy depth, access patterns, import size, concurrency,
-  response objectives, and resource limits.
+  business need or an approved workload. Do not invent arbitrary performance targets.
 -->
 
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable outcome, e.g., "A catalog manager can complete the defined
-  lifecycle operation using one documented workflow"]
-- **SC-002**: [Measurable outcome derived from an approved workload or evidence]
-- **SC-003**: [Integrity outcome, e.g., "Every invalid hierarchy transition is rejected
-  with the specified error"]
-- **SC-004**: [Consumer outcome, e.g., "A retired identifier resolves according to the
-  documented historical rules"]
+- **SC-001**: [Consumer outcome, e.g., "A consuming service resolves every supported
+  active alpha-2 code with the documented representation or not-found error"]
+- **SC-002**: [Bounded-query outcome, e.g., "Every collection rejects a page size above
+  the documented maximum"]
+- **SC-003**: [Visibility outcome, e.g., "Current-catalog responses contain no draft or
+  retired records"]
+- **SC-004**: [Historical/localization outcome, e.g., "A retired identifier or missing
+  translation follows the documented temporal or fallback rules"]
+- **SC-005**: [Read-only outcome, e.g., "Contract verification finds no POST, PUT, PATCH,
+  or DELETE operation"]
+- **SC-006**: [Measured outcome derived from an approved workload or evidence]
 
 ## Assumptions
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right assumptions based on reasonable defaults
-  chosen when the feature description did not specify certain details.
--->
-
-- [Assumption about consumers, e.g., "Callers use published logical identifiers"]
+- [Assumption about consuming systems, e.g., "Consumers use published logical codes"]
 - [Assumption about scope, e.g., "Postal codes remain outside this feature"]
-- [Assumption about data, e.g., "The source authority supplies one identifiable revision"]
-- [Dependency, e.g., "Validated principals are supplied by the approved identity architecture"]
+- [Assumption about catalog revision and source provenance]
+- [Dependency, e.g., "The approved gateway supplies a validated read principal"]
+- [Assumption that catalog mutation is delivered separately through controlled SQL
+  migrations]
 
 ## Dependencies and Risks
 
-- [External dependency, failure mode, and ownership]
-- [Known risk, consequence, and required mitigation or decision]
+- [External read dependency, failure mode, and ownership]
+- [Catalog source/revision dependency and migration risk]
+- [Query consistency, scale, localization, temporal, or security risk and mitigation]
 
 ## Documentation Impact
 
-- [README, architecture, C4, API, database, migration, security, deployment, runbook,
-  ADR, local-development, or testing documentation that MUST change]
+- [README, architecture, C4, OpenAPI, database, SQL migration, database identities,
+  security, deployment, runbook, ADR, local-development, or testing documentation that
+  MUST change]

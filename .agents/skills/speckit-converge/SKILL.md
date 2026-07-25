@@ -90,6 +90,14 @@ When the codebase already satisfies everything, the command MUST leave `tasks.md
 produces a corresponding remediation task. If the constitution is an unfilled template,
 skip constitution checks gracefully rather than failing.
 
+For Geographic Reference Service, the assessment MUST explicitly search the scoped code
+and contracts for POST, PUT, PATCH, DELETE, mutation jobs or consumers, mutation use
+cases or repositories, runtime JDBC, application-startup Flyway, privileged runtime
+credentials, and unbounded queries. It MUST also assess method-exclusion tests,
+runtime-role mutation-rejection tests, external migration identity, bounded query tests,
+and applicable PostgreSQL 18 catalog migration tests. Any prohibited runtime write path
+is a CRITICAL `contradicts` finding.
+
 ## Execution Steps
 
 ### 1. Initialize Convergence Context

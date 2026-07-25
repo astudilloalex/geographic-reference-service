@@ -4,68 +4,114 @@
 
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
+**Note**: This template is filled in by the `/speckit-plan` command; its definition
+describes the execution workflow.
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+[Extract the consuming-system query requirement and the reactive read-only technical
+approach from the feature specification]
 
 ## Technical Context
 
 <!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
+  ACTION REQUIRED: Replace every placeholder with evidence from the approved
+  specification or research. This service is a reactive, runtime read-only geographic
+  reference-data service.
 -->
 
 **Language/Version**: Java 25
 
 **Primary Dependencies**: Approved Quarkus LTS/latest approved patch, Quarkus REST,
-Jackson, Mutiny, Hibernate Reactive with Panache repositories, Vert.x Reactive PostgreSQL
-Client
+Jackson, Mutiny, Hibernate Reactive with Panache repositories or justified Vert.x
+Reactive PostgreSQL Client queries
 
-**Storage**: PostgreSQL 18 or explicitly approved baseline; Flyway migrations
+**Storage**: PostgreSQL 18; immutable Flyway schema and catalog-data migrations
 
-**Testing**: Domain and application unit, PostgreSQL persistence integration, OpenAPI
-contract, architecture, migration, and reactive tests
+**Runtime Database Identity**: Read-only role with only required `CONNECT`, `USAGE`, and
+`SELECT` privileges; no ownership or mutation privileges
+
+**Migration Execution**: Separate migration identity outside application startup;
+execution SHOULD use a CI/CD stage or controlled one-shot deployment unit
+
+**Testing**: Domain query, application query, PostgreSQL 18 persistence, runtime-role
+privilege, OpenAPI and HTTP-method exclusion, architecture, conditional migration, and
+reactive tests
 
 **Target Platform**: Java 25 JVM in a non-root OCI container; rootless Podman Quadlet
 
-**Project Type**: Independently deployable reactive web service
+**Project Type**: Independently deployable reactive read-only reference-data service
 
-**Performance Goals**: [Measured or approved workload objectives from spec; MUST NOT be
-invented, or NOT PERFORMANCE-SENSITIVE with evidence]
+**Performance Goals**: [Measured or approved read-workload objectives from the spec;
+MUST NOT be invented, or NOT PERFORMANCE-SENSITIVE with evidence]
 
-**Constraints**: Non-blocking runtime I/O; bounded pagination; strict Clean Architecture;
-contract-first OpenAPI; JVM runtime; no speculative infrastructure
+**Constraints**: Only `GET`, `HEAD`, and required `OPTIONS`; non-blocking runtime I/O;
+SELECT-only runtime credentials; Flyway outside runtime identity; bounded pagination,
+hierarchy depth, and results; strict Clean Architecture; contract-first OpenAPI; JVM
+runtime; no speculative infrastructure
 
-**Scale/Scope**: [Expected catalog size, request volume, page size, hierarchy depth,
-access patterns, import size, and concurrency when applicable]
+**Scale/Scope**: [Expected catalog size, request volume, maximum page size, maximum
+hierarchy depth and result count, access patterns, localization/temporal dimensions, and
+read concurrency when applicable]
+
+**Catalog Revision/Provenance**: [Expected dataset revision, source authority/reference,
+checksum strategy, readiness compatibility, or N/A with evidence]
+
+**Query Consistency**: [Single-statement snapshot, justified multi-query read-only
+transaction, or N/A; explain why one statement is insufficient when a transaction is
+used]
 
 ## Constitution Check
 
-*GATE: Every item MUST be marked PASS, FAIL, or N/A with evidence before Phase 0 and
-re-evaluated after Phase 1. Any FAIL blocks progress unless an approved constitutional
-exception is recorded in Complexity Tracking.*
+*GATE: Every item MUST be marked PASS, FAIL, or N/A with concrete evidence before Phase 0
+and re-evaluated after Phase 1. Any FAIL blocks task generation unless the constitution
+itself is amended.*
 
 | Gate | Pre-Research | Post-Design | Evidence |
 |------|--------------|-------------|----------|
-| Scope is inside the geographic bounded context; excluded domains, `tenant_id`, shared schema, and cross-service database FKs are absent | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [spec/design reference] |
-| Java 25, Gradle Wrapper/Kotlin DSL, approved Quarkus LTS, reactive PostgreSQL/Flyway, OpenAPI, JVM OCI, and Quadlet baseline is preserved | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [reference] |
-| Clean Architecture dependencies point inward and architecture tests cover all boundaries | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [packages/tests] |
-| Runtime I/O is non-blocking Mutiny; prohibited blocking, manual subscription, and unsafe session concurrency are absent | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [flow design] |
-| Domain-oriented repositories and explicit reactive transaction boundaries avoid external or long-running work inside transactions | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [ports/transaction map] |
-| Aggregates, constraints, lifecycle, temporal, hierarchy, identifier, concurrency, and provenance rules are defined where applicable | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [data model/invariants] |
-| Every schema change uses a new immutable Flyway migration with named integrity objects, recovery strategy, and empty/upgrade PostgreSQL tests | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [migration plan] |
-| Repository OpenAPI/AsyncAPI is updated before implementation and defines security, errors, pagination, concurrency, idempotency, and versioning | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [contract path] |
-| RFC 9457 errors, stable codes, safe diagnostics, ETag/`If-Match`, and retry behavior are defined where applicable | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [contract/error model] |
-| Least privilege, explicit access, principal-derived audit identity, secrets, and confidential logging are addressed | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [security model] |
-| Import/release/event coherence, provenance, idempotency, and local outbox atomicity are defined where applicable | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [workflow/event design] |
-| Test-first tasks cover domain, application, PostgreSQL persistence, contracts, architecture, migrations, and reactive behavior | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [test strategy] |
-| Performance targets are evidence-based; results are bounded; indexes follow access patterns; cache/denormalization decisions have evidence and ADRs | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [workload/query model] |
-| Health, JSON logs, correlation, tracing, metrics, graceful shutdown, and build metadata are addressed | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [operability plan] |
-| Wrapper/BOM/SBOM, non-root JVM container, deterministic tags, Quadlet, network boundaries, and manifest validation are addressed | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [delivery plan] |
-| Required documentation and ADRs are included; no speculative abstraction or infrastructure is introduced | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [docs/decision list] |
+| The capability is a geographic query inside the bounded context | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [spec/design reference] |
+| Only `GET`, `HEAD`, or required `OPTIONS` endpoints are introduced | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [contract paths and methods] |
+| No `POST`, `PUT`, `PATCH`, `DELETE`, mutation job, or message consumer is introduced | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [negative contract/architecture evidence] |
+| Runtime PostgreSQL access is reactive and non-blocking | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [query flow design] |
+| Runtime PostgreSQL credentials have SELECT-only privileges | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [role/grant design and tests] |
+| Flyway and catalog SQL execute outside the runtime application identity | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [migration unit/pipeline design] |
+| Clean Architecture dependency direction is preserved | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [packages and architecture tests] |
+| Application ports and repositories expose only query operations | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [port/repository design] |
+| OpenAPI is updated before implementation | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [canonical contract path] |
+| Pagination, depth, and result sizes are bounded | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [limits and validation] |
+| Lifecycle and temporal visibility are defined | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [current/historical semantics] |
+| Localization and fallback behavior are defined where applicable | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [language behavior or N/A reason] |
+| RFC 9457 query errors are defined | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [problem types and error codes] |
+| HTTP caching behavior is defined or explicitly not required | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [ETag/date validation or rationale] |
+| PostgreSQL query and migration tests use PostgreSQL 18 | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [test environment] |
+| SQL catalog changes are immutable, reviewed, traceable, and recoverable | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [migration/provenance/recovery plan] |
+| Database constraints continue to enforce reference-data integrity | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [constraints and rejection tests] |
+| Architecture tests prohibit write endpoints and mutation use cases | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [architecture rules] |
+| Reactive tests prohibit blocking and manual subscriptions | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [reactive test strategy] |
+| Deployment separates migration and runtime database identities | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [deployment ordering and secret boundaries] |
+| Observability, security, documentation, and operational changes are covered | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [cross-cutting design] |
+| No speculative messaging, cache, native build, or other infrastructure is added | [PASS/FAIL/N/A] | [PASS/FAIL/N/A] | [dependency/ADR review] |
+
+## Read-Only and Migration Design
+
+**HTTP Surface**: [List every introduced or changed path and its `GET`, `HEAD`, or
+required `OPTIONS` method; prove mutation methods remain absent]
+
+**Query Ports and Repositories**: [List query input ports, query repository output ports,
+bounded result models, and reactive return types]
+
+**Runtime Role**: [Document exact grants, forbidden privileges, role-ownership checks,
+and privilege-test approach]
+
+**Migration Role and Ordering**: [Document external Flyway execution, credential
+separation, schema/catalog verification, readiness dependency, and recovery point]
+
+**SQL Catalog Impact**: [List immutable migration files, source provenance, atomicity,
+recovery, deterministic count/checksum validation, or state that no schema/catalog
+change occurs]
+
+**Query Bounds and Indexes**: [Maximum page size, hierarchy depth/result bounds, sorting,
+filtering, query-plan/index validation, and approved workload evidence]
 
 ## Project Structure
 
@@ -78,31 +124,31 @@ specs/[###-feature]/
 ├── data-model.md        # Phase 1 output (/speckit-plan command)
 ├── quickstart.md        # Phase 1 output (/speckit-plan command)
 ├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+└── tasks.md             # Phase 2 output (/speckit-tasks command)
 ```
 
 ### Source Code (repository root)
+
 <!--
-  ACTION REQUIRED: Replace the package placeholders below with the concrete
-  Clean Architecture packages and repository paths affected by this feature.
-  Preserve the single deployable module unless independent compilation has a
-  demonstrated benefit.
+  ACTION REQUIRED: Replace package placeholders with concrete Clean Architecture
+  packages and repository paths. Preserve one deployable module unless independent
+  compilation has a demonstrated benefit.
 -->
 
 ```text
 src/
 ├── main/
-│   ├── java/             # domain, application, adapters, infrastructure packages
+│   ├── java/             # read domain, query application, adapters, infrastructure
 │   └── resources/
-│       ├── db/migration/ # immutable Flyway migrations
+│       ├── db/migration/ # immutable schema and catalog SQL migrations, when required
 │       └── application.properties
 └── test/
-    ├── java/             # unit, integration, contract, architecture, migration, reactive
+    ├── java/             # query, PostgreSQL, privilege, contract, architecture, reactive
     └── resources/
 
-openapi/                  # canonical HTTP contracts
+openapi/                  # canonical read-only HTTP contract
 docs/                     # architecture, data, security, deployment, operations, ADRs
-deploy/                   # version-controlled Quadlet and deployment configuration
+deploy/                   # separate migration and runtime identities; Quadlet artifacts
 ```
 
 **Structure Decision**: [Document the selected structure and reference the real
@@ -110,9 +156,9 @@ directories captured above]
 
 ## Complexity Tracking
 
-> **Fill ONLY for SHOULD deviations or proposed exceptions. A MUST/MUST NOT conflict
-> requires constitutional compliance or an explicit constitutional amendment; an ADR
-> alone cannot approve it.**
+> **Fill ONLY for justified SHOULD/SHOULD NOT deviations. A MUST/MUST NOT conflict cannot
+> be approved here or by an ADR; it requires constitutional compliance or an explicit
+> constitutional amendment.**
 
 | Principle / Gate | Reason | Alternatives | Risk | Compensating Controls | Approval | Review / Removal Date |
 |------------------|--------|--------------|------|-----------------------|----------|-----------------------|

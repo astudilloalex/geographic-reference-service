@@ -139,6 +139,13 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 
 - Any requirement or plan element conflicting with a MUST principle
 - Missing mandated sections or quality gates from constitution
+- Treat any POST, PUT, PATCH, DELETE, mutation job, message consumer, mutation use case,
+  mutation repository method, runtime JDBC, application-startup Flyway, runtime
+  migration credential, or unbounded query as CRITICAL
+- Confirm the specification has Read-Only Enforcement, the plan records every
+  Constitution Check item as PASS/FAIL/N/A with evidence, and tasks include HTTP-method
+  exclusion, SELECT-only runtime-role, separate Flyway identity, bounded-query, and
+  applicable PostgreSQL 18 migration verification
 
 #### E. Coverage Gaps
 

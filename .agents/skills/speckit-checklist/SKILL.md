@@ -88,7 +88,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Prefer precision over breadth
 
    Generation algorithm:
-   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), stakeholder hints ("QA", "review", "security team"), and explicit deliverables ("a11y", "rollback", "contracts").
+   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), stakeholder hints ("QA", "review", "security team"), and explicit deliverables ("a11y", "migration recovery", "contracts").
    2. Cluster signals into candidate focus areas (max 4) ranked by relevance.
    3. Identify probable audience & timing (author, reviewer, QA, release) if not explicit.
    4. Detect missing dimensions: scope breadth, depth/rigor, risk emphasis, exclusion boundaries, measurable acceptance criteria.
@@ -98,7 +98,7 @@ You **MUST** consider the user input before proceeding (if not empty).
       - Depth calibration (e.g., "Is this a lightweight pre-commit sanity list or a formal release gate?")
       - Audience framing (e.g., "Will this be used by the author only or peers during PR review?")
       - Boundary exclusion (e.g., "Should we explicitly exclude performance tuning items this round?")
-      - Scenario class gap (e.g., "No recovery flows detected—are rollback / partial failure paths in scope?")
+      - Scenario class gap (e.g., "No catalog-migration recovery requirements detected—are partial failure paths in scope?")
 
    Question formatting rules:
    - If presenting options, generate a compact table with columns: Option | Candidate | Why It Matters
@@ -212,7 +212,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check if requirements exist for: Primary, Alternate, Exception/Error, Recovery, Non-Functional scenarios
    - For each scenario class, ask: "Are [scenario type] requirements complete, clear, and consistent?"
    - If scenario class missing: "Are [scenario type] requirements intentionally excluded or missing? [Gap]"
-   - Include resilience/rollback when state mutation occurs: "Are rollback requirements defined for migration failures? [Gap]"
+   - Include recovery only for controlled SQL catalog changes: "Are migration atomicity
+     and recovery requirements defined for catalog failures? [Gap]"
+   - For Geographic Reference Service, every feature checklist MUST ask whether
+     requirements explicitly restrict HTTP methods to GET, HEAD, and required OPTIONS;
+     prohibit runtime mutations/jobs/consumers; define SELECT-only runtime credentials
+     and separate Flyway identity; bound pagination/hierarchy/results; and cover
+     lifecycle, temporal, localization, RFC 9457, cache, provenance, and deployment
+     semantics.
 
    **Traceability Requirements**:
    - MINIMUM: ≥80% of items MUST include at least one traceability reference
