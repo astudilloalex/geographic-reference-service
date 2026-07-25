@@ -1,12 +1,6 @@
 ---
-name: "speckit-checklist"
-description: "Generate a custom checklist for the current feature based on user requirements."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
-metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/checklist.md"
+description: Generate a custom checklist for the current feature based on user requirements.
 ---
-
 
 ## Checklist Purpose: "Unit Tests for English"
 
@@ -47,7 +41,6 @@ You **MUST** consider the user input before proceeding (if not empty).
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -88,7 +81,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Prefer precision over breadth
 
    Generation algorithm:
-   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), stakeholder hints ("QA", "review", "security team"), and explicit deliverables ("a11y", "migration recovery", "contracts").
+   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), stakeholder hints ("QA", "review", "security team"), and explicit deliverables ("a11y", "rollback", "contracts").
    2. Cluster signals into candidate focus areas (max 4) ranked by relevance.
    3. Identify probable audience & timing (author, reviewer, QA, release) if not explicit.
    4. Detect missing dimensions: scope breadth, depth/rigor, risk emphasis, exclusion boundaries, measurable acceptance criteria.
@@ -98,7 +91,7 @@ You **MUST** consider the user input before proceeding (if not empty).
       - Depth calibration (e.g., "Is this a lightweight pre-commit sanity list or a formal release gate?")
       - Audience framing (e.g., "Will this be used by the author only or peers during PR review?")
       - Boundary exclusion (e.g., "Should we explicitly exclude performance tuning items this round?")
-      - Scenario class gap (e.g., "No catalog-migration recovery requirements detected—are partial failure paths in scope?")
+      - Scenario class gap (e.g., "No recovery flows detected—are rollback / partial failure paths in scope?")
 
    Question formatting rules:
    - If presenting options, generate a compact table with columns: Option | Candidate | Why It Matters
@@ -212,14 +205,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check if requirements exist for: Primary, Alternate, Exception/Error, Recovery, Non-Functional scenarios
    - For each scenario class, ask: "Are [scenario type] requirements complete, clear, and consistent?"
    - If scenario class missing: "Are [scenario type] requirements intentionally excluded or missing? [Gap]"
-   - Include recovery only for controlled SQL catalog changes: "Are migration atomicity
-     and recovery requirements defined for catalog failures? [Gap]"
-   - For Geographic Reference Service, every feature checklist MUST ask whether
-     requirements explicitly restrict HTTP methods to GET, HEAD, and required OPTIONS;
-     prohibit runtime mutations/jobs/consumers; define SELECT-only runtime credentials
-     and separate Flyway identity; bound pagination/hierarchy/results; and cover
-     lifecycle, temporal, localization, RFC 9457, cache, provenance, and deployment
-     semantics.
+   - Include resilience/rollback when state mutation occurs: "Are rollback requirements defined for migration failures? [Gap]"
 
    **Traceability Requirements**:
    - MINIMUM: ≥80% of items MUST include at least one traceability reference
@@ -263,7 +249,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Actor/timing
    - Any explicit user-specified must-have items incorporated
 
-**Important**: Each `/speckit-checklist` command invocation uses a short, descriptive checklist filename and either creates a new file or appends to an existing one. This allows:
+**Important**: Each `/speckit.checklist` command invocation uses a short, descriptive checklist filename and either creates a new file or appends to an existing one. This allows:
 
 - Multiple checklists of different types (e.g., `ux.md`, `test.md`, `security.md`)
 - Simple, memorable filenames that indicate checklist purpose
@@ -355,7 +341,6 @@ Check if `.specify/extensions.yml` exists in the project root.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```

@@ -1,12 +1,14 @@
 ---
-name: "speckit-specify"
-description: "Create or update the feature specification from a natural language feature description."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
-metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/specify.md"
+description: Create or update the feature specification from a natural language feature description.
+handoffs:
+  - label: Build Technical Plan
+    agent: speckit.plan
+    prompt: Create a plan for the spec. I am building with...
+  - label: Clarify Spec Requirements
+    agent: speckit.clarify
+    prompt: Clarify specification requirements
+    send: true
 ---
-
 
 ## User Input
 
@@ -26,7 +28,6 @@ You **MUST** consider the user input before proceeding (if not empty).
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -54,7 +55,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-The text the user typed after `/speckit-specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `$ARGUMENTS` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
+The text the user typed after `/speckit.specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `$ARGUMENTS` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
 Given that feature description, do this:
 
@@ -102,10 +103,10 @@ Given that feature description, do this:
      }
      ```
      Write the actual resolved directory path value (for example, `specs/003-user-auth`), not the literal string `SPECIFY_FEATURE_DIRECTORY`.
-     This allows downstream commands (`/speckit-plan`, `/speckit-tasks`, etc.) to locate the feature directory without relying on git branch name conventions.
+     This allows downstream commands (`/speckit.plan`, `/speckit.tasks`, etc.) to locate the feature directory without relying on git branch name conventions.
 
    **IMPORTANT**:
-   - You must only create one feature per `/speckit-specify` invocation
+   - You must only create one feature per `/speckit.specify` invocation
    - The spec directory name and the git branch name are independent — they may be the same but that is the user's choice
    - The spec directory and file are always created by this command, never by the hook
 
@@ -126,24 +127,14 @@ Given that feature description, do this:
          - No reasonable default exists
        - **LIMIT: Maximum 3 [NEEDS CLARIFICATION] markers total**
        - Prioritize clarifications by impact: scope > security/privacy > user experience > technical details
-    4. Fill User Scenarios & Testing with consuming-system query stories only
+    4. Fill User Scenarios & Testing section
        If no clear user flow: ERROR "Cannot determine user scenarios"
     5. Generate Functional Requirements
        Each requirement must be testable
        Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
-       Explicitly define scope, non-goals, read access, Read-Only Enforcement, query
-       consistency or snapshot semantics, bounded pagination/hierarchy/results,
-       filtering, sorting, localization fallback, lifecycle and temporal visibility,
-       RFC 9457 query errors, HTTP cache validation, OpenAPI impact, SQL migration and
-       provenance impact, separate database identities, and deployment behavior
-       State that only GET, HEAD, and required OPTIONS are exposed and that POST, PUT,
-       PATCH, DELETE, mutation jobs, and message consumers are absent
-       Treat every schema or catalog-data change as immutable SQL migration impact, not
-       runtime application functionality
     6. Define Success Criteria
        Create measurable, technology-agnostic outcomes
-       Include quantitative performance or volume targets only when supplied by an
-       approved workload or evidence; MUST NOT invent arbitrary targets
+       Include both quantitative metrics (time, performance, volume) and qualitative measures (user satisfaction, task completion)
        Each criterion must be verifiable without implementation details
     7. Identify Key Entities (if data involved)
     8. Return: SUCCESS (spec ready for planning)
@@ -163,7 +154,7 @@ Given that feature description, do this:
 
       ## Content Quality
 
-      - [ ] No low-level implementation detail unless constitutionally required or essential for correctness
+      - [ ] No implementation details (languages, frameworks, APIs)
       - [ ] Focused on user value and business needs
       - [ ] Written for non-technical stakeholders
       - [ ] All mandatory sections completed
@@ -177,15 +168,6 @@ Given that feature description, do this:
       - [ ] All acceptance scenarios are defined
       - [ ] Edge cases are identified
       - [ ] Scope is clearly bounded
-      - [ ] Non-goals and bounded-context exclusions are explicit
-      - [ ] Read access and RFC 9457 query error behavior are defined
-      - [ ] Read-Only Enforcement states only GET, HEAD, and required OPTIONS are exposed
-      - [ ] POST, PUT, PATCH, DELETE, mutation jobs, and message consumers are excluded
-      - [ ] Query consistency and any justified read-only snapshot semantics are defined
-      - [ ] Pagination, hierarchy depth, and result sizes are bounded
-      - [ ] Filtering, sorting, localization fallback, and temporal visibility are defined
-      - [ ] HTTP cache validation is defined or explicitly not required
-      - [ ] OpenAPI, SQL migration/provenance, database identity, and deployment impacts are defined
       - [ ] Dependencies and assumptions identified
 
       ## Feature Readiness
@@ -193,11 +175,11 @@ Given that feature description, do this:
       - [ ] All functional requirements have clear acceptance criteria
       - [ ] User scenarios cover primary flows
       - [ ] Feature meets measurable outcomes defined in Success Criteria
-      - [ ] Every implementation constraint is constitutional or essential for correctness
+      - [ ] No implementation details leak into specification
 
       ## Notes
 
-      - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
+      - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
       ```
 
    b. **Run Validation Check**: Review the spec against each checklist item:
@@ -263,7 +245,6 @@ Check if `.specify/extensions.yml` exists in the project root.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
     ```
@@ -292,7 +273,7 @@ Report completion to the user with:
 - `SPECIFY_FEATURE_DIRECTORY` — the feature directory path
 - `SPEC_FILE` — the spec file path
 - Checklist results summary
-- Readiness for the next phase (`/speckit-clarify` or `/speckit-plan`)
+- Readiness for the next phase (`/speckit.clarify` or `/speckit.plan`)
 
 **NOTE:** Branch creation is handled by the `before_specify` hook (git extension). Spec directory and file creation are always handled by this core command.
 
@@ -329,19 +310,16 @@ When creating this spec from a user prompt:
 **Examples of reasonable defaults** (don't ask about these):
 
 - Data retention: Industry-standard practices for the domain
-- Performance targets: Do not invent; require measured or explicitly approved workloads
+- Performance targets: Standard web/mobile app expectations unless specified
 - Error handling: User-friendly messages with appropriate fallbacks
-- Authentication method: Follow the approved identity architecture and require explicit
-  access and authorization decisions
-- Integration patterns: Contract-first read-only Quarkus REST/OpenAPI with only GET,
-  HEAD, and required OPTIONS; no runtime messaging or mutation integration
+- Authentication method: Standard session-based or OAuth2 for web apps
+- Integration patterns: Use project-appropriate patterns (REST/GraphQL for web services, function calls for libraries, CLI args for tools, etc.)
 
 ### Success Criteria Guidelines
 
 Success criteria must be:
 
-1. **Measurable**: Include specific verification criteria; numeric workload targets MUST
-   come from user input, measurement, or an approved source
+1. **Measurable**: Include specific metrics (time, percentage, count, rate)
 2. **Technology-agnostic**: No mention of frameworks, languages, databases, or tools
 3. **User-focused**: Describe outcomes from user/business perspective, not system internals
 4. **Verifiable**: Can be tested/validated without knowing implementation details
@@ -349,8 +327,8 @@ Success criteria must be:
 **Good examples**:
 
 - "Users can complete checkout in under 3 minutes"
-- "The approved workload's maximum page size is enforced for every listing"
-- "Every lifecycle and temporal visibility state has an observable query scenario"
+- "System supports 10,000 concurrent users"
+- "95% of searches return results in under 1 second"
 - "Task completion rate improves by 40%"
 
 **Bad examples** (implementation-focused):

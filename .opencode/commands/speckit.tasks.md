@@ -1,12 +1,15 @@
 ---
-name: "speckit-tasks"
-description: "Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
-metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/tasks.md"
+description: Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts.
+handoffs:
+  - label: Analyze For Consistency
+    agent: speckit.analyze
+    prompt: Run a project analysis for consistency
+    send: true
+  - label: Implement Project
+    agent: speckit.implement
+    prompt: Start the implementation in phases
+    send: true
 ---
-
 
 ## User Input
 
@@ -26,7 +29,6 @@ You **MUST** consider the user input before proceeding (if not empty).
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -61,12 +63,6 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **IF EXISTS**: Load `.specify/memory/constitution.md` for project principles and governance constraints
    - Note: Not all projects have all documents. Generate tasks based on what's available.
-   - **READINESS GATE**: STOP without writing `tasks.md` when the specification contains
-     material ambiguity or unresolved `[NEEDS CLARIFICATION]` markers, when a required
-     read-access, read-only enforcement, query consistency, bounded query, error,
-     temporal/localization, cache, contract, migration/provenance, database-identity, or
-     deployment decision is missing, or when the plan's Constitution Check contains a
-     `FAIL`. Any `FAIL` blocks generation unless the constitution itself is amended.
 
 3. **Execute task generation workflow**:
    - Load plan.md and extract tech stack, libraries, project structure
@@ -74,17 +70,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map interface contracts to user stories
    - If research.md exists: Extract decisions for setup tasks
-   - Generate tasks organized by consuming-system query story
-   - Reject any requested task for POST, PUT, PATCH, DELETE, mutation use cases,
-     mutation repository methods, scheduled mutation jobs, message consumers, imports,
-     publication, outbox, command idempotency, or optimistic write concurrency
-   - Generate Flyway schema/catalog tasks only when the feature changes schema or data
-   - Generate migration tests before migration implementation, including PostgreSQL 18,
-     provenance, atomic failure, recovery, and deterministic validation
-   - Generate runtime-role tests proving SELECT succeeds and INSERT, UPDATE, DELETE fail
-   - Generate OpenAPI tests proving mutation methods are absent
-   - Generate separate migration/runtime identity and deployment-ordering tasks
-   - Generate bounded pagination/hierarchy and justified query-plan/index tasks
+   - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
@@ -94,8 +80,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Phase 1: Setup tasks (project initialization)
    - Phase 2: Foundational tasks (blocking prerequisites for all user stories)
    - Phase 3+: One phase per user story (in priority order from spec.md)
-   - Each phase includes: story goal, independent test criteria, mandatory applicable
-     tests, implementation tasks
+   - Each phase includes: story goal, independent test criteria, tests (if requested), implementation tasks
    - Final Phase: Polish & cross-cutting concerns
    - All tasks must follow the strict checklist format (see Task Generation Rules below)
    - Clear file paths for each task
@@ -115,7 +100,6 @@ Check if `.specify/extensions.yml` exists in the project root.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
     ```
@@ -156,16 +140,7 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are MANDATORY**: Generate test-first tasks for every applicable domain query,
-application query, PostgreSQL 18 reactive persistence, runtime-role privilege,
-OpenAPI/HTTP-method exclusion, architecture, conditional migration, bounded
-pagination/hierarchy, query-plan/index, and reactive behavior required by the
-constitution. Each test task MUST precede its corresponding implementation task.
-
-**Runtime is permanently read-only**: Tasks MUST implement only query ports,
-query repositories, read models, and GET/HEAD/required OPTIONS adapters. Tasks MUST NOT
-include administrative, import, publication, lifecycle-command, mutation, outbox,
-messaging, runtime Flyway, or runtime JDBC work.
+**Tests are OPTIONAL**: Only generate test tasks if explicitly requested in the feature specification or if user requests TDD approach.
 
 ### Checklist Format (REQUIRED)
 
@@ -191,37 +166,33 @@ Every task MUST strictly follow this format:
 **Examples**:
 
 - ✅ CORRECT: `- [ ] T001 Create project structure per implementation plan`
-- ✅ CORRECT: `- [ ] T005 [P] Add runtime-role privilege test in src/test/java/.../RuntimeRolePrivilegeTest.java`
-- ✅ CORRECT: `- [ ] T012 [P] [US1] Define CountryQuery port in src/main/java/.../CountryQuery.java`
-- ✅ CORRECT: `- [ ] T014 [US1] Implement reactive CountryQueryAdapter in src/main/java/.../CountryQueryAdapter.java`
-- ❌ WRONG: `- [ ] Create country query` (missing ID and Story label)
-- ❌ WRONG: `T001 [US1] Create query model` (missing checkbox)
-- ❌ WRONG: `- [ ] [US1] Add query port` (missing Task ID)
-- ❌ WRONG: `- [ ] T001 [US1] Add query port` (missing file path)
+- ✅ CORRECT: `- [ ] T005 [P] Implement authentication middleware in src/middleware/auth.py`
+- ✅ CORRECT: `- [ ] T012 [P] [US1] Create User model in src/models/user.py`
+- ✅ CORRECT: `- [ ] T014 [US1] Implement UserService in src/services/user_service.py`
+- ❌ WRONG: `- [ ] Create User model` (missing ID and Story label)
+- ❌ WRONG: `T001 [US1] Create model` (missing checkbox)
+- ❌ WRONG: `- [ ] [US1] Create User model` (missing Task ID)
+- ❌ WRONG: `- [ ] T001 [US1] Create model` (missing file path)
 
 ### Task Organization
 
 1. **From User Stories (spec.md)** - PRIMARY ORGANIZATION:
    - Each user story (P1, P2, P3...) gets its own phase
    - Map all related components to their story:
-     - Read-domain values and query result models needed for that story
-     - Application query ports and orchestration needed for that story
-     - Reactive persistence and read-only REST adapters needed for that story
-     - Tests specific to that story and every applicable constitutional test category
+     - Models needed for that story
+     - Services needed for that story
+     - Interfaces/UI needed for that story
+     - If tests requested: Tests specific to that story
    - Mark story dependencies (most stories should be independent)
 
 2. **From Contracts**:
    - Map each interface contract → to the user story it serves
-   - Each interface contract → contract test task [P] before implementation in that
-     story's phase
-   - Reject a contract containing POST, PUT, PATCH, DELETE, write schemas, command
-     idempotency, optimistic write concurrency, or mutation-specific errors
+   - If tests requested: Each interface contract → contract test task [P] before implementation in that story's phase
 
 3. **From Data Model**:
    - Map each entity to the user story(ies) that need it
    - If entity serves multiple stories: Put in earliest story or Setup phase
-   - Relationships → bounded query and hierarchy-navigation tasks in the appropriate
-     story phase
+   - Relationships → service layer tasks in appropriate story phase
 
 4. **From Setup/Infrastructure**:
    - Shared infrastructure → Setup phase (Phase 1)
@@ -233,14 +204,12 @@ Every task MUST strictly follow this format:
 - **Phase 1**: Setup (project initialization)
 - **Phase 2**: Foundational (blocking prerequisites - MUST complete before user stories)
 - **Phase 3+**: User Stories in priority order (P1, P2, P3...)
-  - Within each story: Tests → Read Domain → Query Application → Contract → Conditional
-    Migration → Reactive Adapters → Integration
+  - Within each story: Tests (if requested) → Models → Services → Endpoints → Integration
   - Each phase should be a complete, independently testable increment
 - **Final Phase**: Polish & Cross-Cutting Concerns
 
 ## Done When
 
 - [ ] tasks.md generated with all phases, task IDs, and file paths
-- [ ] Specification readiness and Constitution Check gates passed before generation
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with task count, story breakdown, and MVP scope

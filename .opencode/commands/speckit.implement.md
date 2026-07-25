@@ -1,12 +1,6 @@
 ---
-name: "speckit-implement"
-description: "Execute the implementation plan by processing and executing all tasks defined in tasks.md"
-compatibility: "Requires spec-kit project structure with .specify/ directory"
-metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/implement.md"
+description: Execute the implementation plan by processing and executing all tasks defined in tasks.md
 ---
-
 
 ## User Input
 
@@ -26,7 +20,6 @@ You **MUST** consider the user input before proceeding (if not empty).
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -95,12 +88,6 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **IF EXISTS**: Read research.md for technical decisions and constraints
    - **IF EXISTS**: Read .specify/memory/constitution.md for governance constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
-   - **READINESS GATE**: STOP before application changes when the specification retains
-     material ambiguity, the plan's Constitution Check contains an unresolved `FAIL`, an
-     exception attempts to override a MUST/MUST NOT, tasks omit constitutionally
-     required test-first coverage, or any task proposes POST, PUT, PATCH, DELETE,
-     mutation jobs/consumers, mutation use cases/repositories, runtime JDBC,
-     application-startup Flyway, or privileged runtime credentials.
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -161,18 +148,10 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 7. Implementation execution rules:
    - **Setup first**: Initialize project structure, dependencies, configuration
-   - **Tests before code**: Execute every required domain query, application query,
-     PostgreSQL 18 persistence, runtime-role privilege, OpenAPI/method-exclusion,
-     architecture, conditional migration, bounded-query, query-plan, and reactive test
-     task before its corresponding implementation task
-   - **Core development**: Implement read-domain models, query use cases, query ports,
-     reactive persistence adapters, and GET/HEAD/required OPTIONS adapters only
-   - **Migration work**: Implement immutable SQL migrations only after migration tests;
-     keep Flyway external with a separate migration identity
-   - **Integration work**: Configure reactive SELECT-only runtime access, access control,
-     logging, health, metrics, catalog revision, and external migration ordering
-   - **Polish and validation**: Complete quality gates, evidence-based performance work,
-     and documentation
+   - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
+   - **Core development**: Implement models, services, CLI commands, endpoints
+   - **Integration work**: Database connections, middleware, logging, external services
+   - **Polish and validation**: Unit tests, performance optimization, documentation
 
 8. Progress tracking and error handling:
    - Report progress after each completed task
@@ -187,12 +166,8 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check that implemented features match the original specification
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
-   - Prove POST, PUT, PATCH, and DELETE are unavailable; no mutation job, message
-     consumer, mutation use case/repository, runtime JDBC, or startup Flyway exists
-   - Prove runtime credentials can read approved objects and cannot INSERT, UPDATE, or
-     DELETE, and deployment keeps migration credentials outside the application
 
-Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.
+Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit.tasks` first to regenerate the task list.
 
 ## Mandatory Post-Execution Hooks
 
@@ -206,7 +181,6 @@ Check if `.specify/extensions.yml` exists in the project root.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
     ```
