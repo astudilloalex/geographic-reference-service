@@ -1,10 +1,6 @@
 # Gradle
 .gradle/
 build/
-target/
-*.class
-*.jar
-*.log
 
 # Eclipse
 .project
@@ -28,20 +24,16 @@ nb-configuration.xml
 # OSX
 .DS_Store
 
-# Windows
-Thumbs.db
-
 # Vim
 *.swp
 *.swo
-*.tmp
 
 # patch
 *.orig
 *.rej
 
 # Local environment
-.env*
+.env
 
 # Plugin directory
 /.quarkus/cli/plugins/
