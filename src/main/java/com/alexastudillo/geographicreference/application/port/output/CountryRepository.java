@@ -7,8 +7,9 @@ import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+
+import java.util.List;
 
 /**
  * Output port for the {@link Country} aggregate persistence.
@@ -26,15 +27,15 @@ public interface CountryRepository {
 
     Uni<Country> findByNumericCode(NumericCode code);
 
-    Multi<Country> findByStatus(GeographicRecordStatus status);
+    Uni<List<Country>> findByStatus(GeographicRecordStatus status);
 
-    Multi<Country> findAll();
+    Uni<List<Country>> findAll();
 
     Uni<Country> save(Country country);
 
     // ── Country Names ──────────────────────────────────────────────────────
 
-    Multi<CountryName> findNamesByCountryId(CountryId countryId);
+    Uni<List<CountryName>> findNamesByCountryId(CountryId countryId);
 
     Uni<CountryName> saveName(CountryName name);
 }

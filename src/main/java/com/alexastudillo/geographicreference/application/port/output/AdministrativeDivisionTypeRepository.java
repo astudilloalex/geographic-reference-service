@@ -4,8 +4,9 @@ import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeD
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+
+import java.util.List;
 
 /**
  * Output port for {@link AdministrativeDivisionType} persistence.
@@ -19,9 +20,10 @@ public interface AdministrativeDivisionTypeRepository {
 
     Uni<AdministrativeDivisionType> findByCountryIdAndCode(CountryId countryId, String code);
 
-    Multi<AdministrativeDivisionType> findByCountryId(CountryId countryId);
+    Uni<List<AdministrativeDivisionType>> findByCountryId(CountryId countryId);
 
-    Multi<AdministrativeDivisionType> findByCountryIdAndStatus(CountryId countryId, GeographicRecordStatus status);
+    Uni<List<AdministrativeDivisionType>> findByCountryIdAndStatus(CountryId countryId,
+            GeographicRecordStatus status);
 
     Uni<AdministrativeDivisionType> save(AdministrativeDivisionType type);
 }

@@ -17,7 +17,6 @@ import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
 import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.SourceProvenance;
 import com.alexastudillo.geographicreference.domain.model.valobj.ValidityPeriod;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,10 +97,11 @@ class GetAdministrativeDivisionQueryServiceTest {
 
     @Test
     void shouldListByCountryId() {
-        assertThat(service.listByCountryId(null).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByCountryId(null).await().indefinitely()).isEmpty();
 
-        when(repository.findByCountryId(countryId)).thenReturn(Multi.createFrom().items(division));
-        final List<AdministrativeDivisionResponse> list = service.listByCountryId(countryId.value()).collect().asList().await().indefinitely();
+        when(repository.findByCountryId(countryId)).thenReturn(Uni.createFrom().item(List.of(division)));
+        final List<AdministrativeDivisionResponse> list = service.listByCountryId(countryId.value())
+                .await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).canonicalCode()).isEqualTo("P-PICHINCHA");
@@ -109,29 +109,39 @@ class GetAdministrativeDivisionQueryServiceTest {
 
     @Test
     void shouldListByParentId() {
-        assertThat(service.listByParentId(null, UUID.randomUUID()).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByParentId(null, UUID.randomUUID()).await().indefinitely()).isEmpty();
 
         final UUID parentUuid = UUID.randomUUID();
-        when(repository.findByParentDivisionId(countryId, DivisionId.of(parentUuid))).thenReturn(Multi.createFrom().items(division));
-        final List<AdministrativeDivisionResponse> list = service.listByParentId(countryId.value(), parentUuid).collect().asList().await().indefinitely();
+        when(repository.findByParentDivisionId(countryId, DivisionId.of(parentUuid)))
+                .thenReturn(Uni.createFrom().item(List.of(division)));
+        final List<AdministrativeDivisionResponse> list = service.listByParentId(countryId.value(), parentUuid)
+                .await().indefinitely();
 
         assertThat(list).hasSize(1);
 
-        when(repository.findByParentDivisionId(countryId, null)).thenReturn(Multi.createFrom().items(division));
-        final List<AdministrativeDivisionResponse> rootList = service.listByParentId(countryId.value(), null).collect().asList().await().indefinitely();
+        when(repository.findByParentDivisionId(countryId, null))
+                .thenReturn(Uni.createFrom().item(List.of(division)));
+        final List<AdministrativeDivisionResponse> rootList = service.listByParentId(countryId.value(), null)
+                .await().indefinitely();
         assertThat(rootList).hasSize(1);
     }
 
     @Test
     void shouldListByTypeAndStatus() {
-        assertThat(service.listByTypeAndStatus(null, typeId.value(), "ACTIVE").collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.listByTypeAndStatus(countryId.value(), null, "ACTIVE").collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.listByTypeAndStatus(countryId.value(), typeId.value(), null).collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.listByTypeAndStatus(countryId.value(), typeId.value(), " ").collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.listByTypeAndStatus(countryId.value(), typeId.value(), "INVALID").collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByTypeAndStatus(null, typeId.value(), "ACTIVE").await().indefinitely()).isEmpty();
+        assertThat(service.listByTypeAndStatus(countryId.value(), null, "ACTIVE").await().indefinitely()).isEmpty();
+        assertThat(service.listByTypeAndStatus(countryId.value(), typeId.value(), null).await().indefinitely())
+                .isEmpty();
+        assertThat(service.listByTypeAndStatus(countryId.value(), typeId.value(), " ").await().indefinitely())
+                .isEmpty();
+        assertThat(service.listByTypeAndStatus(countryId.value(), typeId.value(), "INVALID").await().indefinitely())
+                .isEmpty();
 
-        when(repository.findByTypeAndStatus(countryId, typeId, GeographicRecordStatus.ACTIVE)).thenReturn(Multi.createFrom().items(division));
-        final List<AdministrativeDivisionResponse> list = service.listByTypeAndStatus(countryId.value(), typeId.value(), "active").collect().asList().await().indefinitely();
+        when(repository.findByTypeAndStatus(countryId, typeId, GeographicRecordStatus.ACTIVE))
+                .thenReturn(Uni.createFrom().item(List.of(division)));
+        final List<AdministrativeDivisionResponse> list = service
+                .listByTypeAndStatus(countryId.value(), typeId.value(), "active")
+                .await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).status()).isEqualTo("ACTIVE");
@@ -139,8 +149,8 @@ class GetAdministrativeDivisionQueryServiceTest {
 
     @Test
     void shouldFindIdentifiersByDivisionId() {
-        assertThat(service.findIdentifiersByDivisionId(null, divisionId.value()).collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.findIdentifiersByDivisionId(countryId.value(), null).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.findIdentifiersByDivisionId(null, divisionId.value()).await().indefinitely()).isEmpty();
+        assertThat(service.findIdentifiersByDivisionId(countryId.value(), null).await().indefinitely()).isEmpty();
 
         final UUID id = UUID.randomUUID();
         final AdministrativeDivisionIdentifier identifier = new AdministrativeDivisionIdentifier(
@@ -156,8 +166,11 @@ class GetAdministrativeDivisionQueryServiceTest {
                 auditInfo
         );
 
-        when(repository.findIdentifiersByDivisionId(countryId, divisionId)).thenReturn(Multi.createFrom().items(identifier));
-        final List<AdministrativeDivisionIdentifierResponse> result = service.findIdentifiersByDivisionId(countryId.value(), divisionId.value()).collect().asList().await().indefinitely();
+        when(repository.findIdentifiersByDivisionId(countryId, divisionId))
+                .thenReturn(Uni.createFrom().item(List.of(identifier)));
+        final List<AdministrativeDivisionIdentifierResponse> result = service
+                .findIdentifiersByDivisionId(countryId.value(), divisionId.value())
+                .await().indefinitely();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).schemeCode()).isEqualTo("ISO_3166_2");
@@ -165,8 +178,8 @@ class GetAdministrativeDivisionQueryServiceTest {
 
     @Test
     void shouldFindNamesByDivisionId() {
-        assertThat(service.findNamesByDivisionId(null, divisionId.value()).collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.findNamesByDivisionId(countryId.value(), null).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.findNamesByDivisionId(null, divisionId.value()).await().indefinitely()).isEmpty();
+        assertThat(service.findNamesByDivisionId(countryId.value(), null).await().indefinitely()).isEmpty();
 
         final UUID id = UUID.randomUUID();
         final AdministrativeDivisionName name = new AdministrativeDivisionName(
@@ -181,8 +194,11 @@ class GetAdministrativeDivisionQueryServiceTest {
                 auditInfo
         );
 
-        when(repository.findNamesByDivisionId(countryId, divisionId)).thenReturn(Multi.createFrom().items(name));
-        final List<AdministrativeDivisionNameResponse> result = service.findNamesByDivisionId(countryId.value(), divisionId.value()).collect().asList().await().indefinitely();
+        when(repository.findNamesByDivisionId(countryId, divisionId))
+                .thenReturn(Uni.createFrom().item(List.of(name)));
+        final List<AdministrativeDivisionNameResponse> result = service
+                .findNamesByDivisionId(countryId.value(), divisionId.value())
+                .await().indefinitely();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("Provincia de Pichincha");

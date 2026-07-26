@@ -3,9 +3,9 @@ package com.alexastudillo.geographicreference.application.port.input;
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionIdentifierResponse;
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionNameResponse;
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionResponse;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -17,13 +17,13 @@ public interface GetAdministrativeDivisionQueryPort {
 
     Uni<AdministrativeDivisionResponse> findByCanonicalCode(UUID countryId, String canonicalCode);
 
-    Multi<AdministrativeDivisionResponse> listByCountryId(UUID countryId);
+    Uni<List<AdministrativeDivisionResponse>> listByCountryId(UUID countryId);
 
-    Multi<AdministrativeDivisionResponse> listByParentId(UUID countryId, UUID parentId);
+    Uni<List<AdministrativeDivisionResponse>> listByParentId(UUID countryId, UUID parentId);
 
-    Multi<AdministrativeDivisionResponse> listByTypeAndStatus(UUID countryId, UUID typeId, String status);
+    Uni<List<AdministrativeDivisionResponse>> listByTypeAndStatus(UUID countryId, UUID typeId, String status);
 
-    Multi<AdministrativeDivisionIdentifierResponse> findIdentifiersByDivisionId(UUID countryId, UUID divisionId);
+    Uni<List<AdministrativeDivisionIdentifierResponse>> findIdentifiersByDivisionId(UUID countryId, UUID divisionId);
 
-    Multi<AdministrativeDivisionNameResponse> findNamesByDivisionId(UUID countryId, UUID divisionId);
+    Uni<List<AdministrativeDivisionNameResponse>> findNamesByDivisionId(UUID countryId, UUID divisionId);
 }

@@ -10,9 +10,9 @@ import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecord
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -47,55 +47,66 @@ public class GetAdministrativeDivisionQueryService implements GetAdministrativeD
     }
 
     @Override
-    public Multi<AdministrativeDivisionResponse> listByCountryId(final UUID countryId) {
+    public Uni<List<AdministrativeDivisionResponse>> listByCountryId(final UUID countryId) {
         if (countryId == null) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         return repository.findByCountryId(CountryId.of(countryId))
-                .onItem().transform(AdministrativeDivisionApplicationMapper::toResponse);
+                .onItem().transform(divisions -> divisions.stream()
+                        .map(AdministrativeDivisionApplicationMapper::toResponse)
+                        .toList());
     }
 
     @Override
-    public Multi<AdministrativeDivisionResponse> listByParentId(final UUID countryId, final UUID parentId) {
+    public Uni<List<AdministrativeDivisionResponse>> listByParentId(final UUID countryId, final UUID parentId) {
         if (countryId == null) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         final DivisionId parentDivisionId = parentId != null ? DivisionId.of(parentId) : null;
         return repository.findByParentDivisionId(CountryId.of(countryId), parentDivisionId)
-                .onItem().transform(AdministrativeDivisionApplicationMapper::toResponse);
+                .onItem().transform(divisions -> divisions.stream()
+                        .map(AdministrativeDivisionApplicationMapper::toResponse)
+                        .toList());
     }
 
     @Override
-    public Multi<AdministrativeDivisionResponse> listByTypeAndStatus(final UUID countryId, final UUID typeId,
+    public Uni<List<AdministrativeDivisionResponse>> listByTypeAndStatus(final UUID countryId, final UUID typeId,
             final String status) {
         if (countryId == null || typeId == null || status == null || status.isBlank()) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         try {
             final GeographicRecordStatus recordStatus = GeographicRecordStatus.valueOf(status.trim().toUpperCase());
             return repository.findByTypeAndStatus(CountryId.of(countryId), DivisionTypeId.of(typeId), recordStatus)
-                    .onItem().transform(AdministrativeDivisionApplicationMapper::toResponse);
+                    .onItem().transform(divisions -> divisions.stream()
+                            .map(AdministrativeDivisionApplicationMapper::toResponse)
+                            .toList());
         } catch (IllegalArgumentException _) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
     }
 
     @Override
-    public Multi<AdministrativeDivisionIdentifierResponse> findIdentifiersByDivisionId(final UUID countryId,
+    public Uni<List<AdministrativeDivisionIdentifierResponse>> findIdentifiersByDivisionId(final UUID countryId,
             final UUID divisionId) {
         if (countryId == null || divisionId == null) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         return repository.findIdentifiersByDivisionId(CountryId.of(countryId), DivisionId.of(divisionId))
-                .onItem().transform(AdministrativeDivisionApplicationMapper::toIdentifierResponse);
+                .onItem().transform(identifiers -> identifiers.stream()
+                        .map(AdministrativeDivisionApplicationMapper::toIdentifierResponse)
+                        .toList());
     }
 
     @Override
-    public Multi<AdministrativeDivisionNameResponse> findNamesByDivisionId(final UUID countryId, final UUID divisionId) {
+    public Uni<List<AdministrativeDivisionNameResponse>> findNamesByDivisionId(final UUID countryId,
+            final UUID divisionId) {
         if (countryId == null || divisionId == null) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         return repository.findNamesByDivisionId(CountryId.of(countryId), DivisionId.of(divisionId))
-                .onItem().transform(AdministrativeDivisionApplicationMapper::toNameResponse);
+                .onItem().transform(names -> names.stream()
+                        .map(AdministrativeDivisionApplicationMapper::toNameResponse)
+                        .toList());
     }
 }

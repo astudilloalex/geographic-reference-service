@@ -15,7 +15,6 @@ import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import com.alexastudillo.geographicreference.domain.model.valobj.SourceProvenance;
 import com.alexastudillo.geographicreference.domain.model.valobj.ValidityPeriod;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -118,8 +117,8 @@ class GetCountryQueryServiceTest {
 
     @Test
     void shouldListAll() {
-        when(countryRepository.findAll()).thenReturn(Multi.createFrom().items(country));
-        final List<CountryResponse> list = service.listAll().collect().asList().await().indefinitely();
+        when(countryRepository.findAll()).thenReturn(Uni.createFrom().item(List.of(country)));
+        final List<CountryResponse> list = service.listAll().await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).alpha2Code()).isEqualTo("EC");
@@ -127,12 +126,13 @@ class GetCountryQueryServiceTest {
 
     @Test
     void shouldListByStatus() {
-        assertThat(service.listByStatus(null).collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.listByStatus(" ").collect().asList().await().indefinitely()).isEmpty();
-        assertThat(service.listByStatus("INVALID_STATUS").collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByStatus(null).await().indefinitely()).isEmpty();
+        assertThat(service.listByStatus(" ").await().indefinitely()).isEmpty();
+        assertThat(service.listByStatus("INVALID_STATUS").await().indefinitely()).isEmpty();
 
-        when(countryRepository.findByStatus(GeographicRecordStatus.ACTIVE)).thenReturn(Multi.createFrom().items(country));
-        final List<CountryResponse> list = service.listByStatus("active").collect().asList().await().indefinitely();
+        when(countryRepository.findByStatus(GeographicRecordStatus.ACTIVE))
+                .thenReturn(Uni.createFrom().item(List.of(country)));
+        final List<CountryResponse> list = service.listByStatus("active").await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).status()).isEqualTo("ACTIVE");
@@ -140,7 +140,7 @@ class GetCountryQueryServiceTest {
 
     @Test
     void shouldFindNamesByCountryId() {
-        assertThat(service.findNamesByCountryId(null).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.findNamesByCountryId(null).await().indefinitely()).isEmpty();
 
         final UUID nameId = UUID.randomUUID();
         final CountryName countryName = new CountryName(
@@ -153,8 +153,10 @@ class GetCountryQueryServiceTest {
                 validity,
                 auditInfo);
 
-        when(countryRepository.findNamesByCountryId(countryId)).thenReturn(Multi.createFrom().items(countryName));
-        final List<CountryNameResponse> names = service.findNamesByCountryId(countryId.value()).collect().asList().await().indefinitely();
+        when(countryRepository.findNamesByCountryId(countryId))
+                .thenReturn(Uni.createFrom().item(List.of(countryName)));
+        final List<CountryNameResponse> names = service.findNamesByCountryId(countryId.value())
+                .await().indefinitely();
 
         assertThat(names).hasSize(1);
         assertThat(names.get(0).name()).isEqualTo("República del Ecuador");

@@ -7,8 +7,9 @@ import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecord
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+
+import java.util.List;
 
 /**
  * Output port for the {@link AdministrativeDivision} aggregate persistence.
@@ -24,11 +25,11 @@ public interface AdministrativeDivisionRepository {
 
     Uni<AdministrativeDivision> findByCanonicalCode(CountryId countryId, String canonicalCode);
 
-    Multi<AdministrativeDivision> findByCountryId(CountryId countryId);
+    Uni<List<AdministrativeDivision>> findByCountryId(CountryId countryId);
 
-    Multi<AdministrativeDivision> findByParentDivisionId(CountryId countryId, DivisionId parentId);
+    Uni<List<AdministrativeDivision>> findByParentDivisionId(CountryId countryId, DivisionId parentId);
 
-    Multi<AdministrativeDivision> findByTypeAndStatus(CountryId countryId,
+    Uni<List<AdministrativeDivision>> findByTypeAndStatus(CountryId countryId,
             DivisionTypeId typeId,
             GeographicRecordStatus status);
 
@@ -36,14 +37,14 @@ public interface AdministrativeDivisionRepository {
 
     // ── Identifiers ────────────────────────────────────────────────────────
 
-    Multi<AdministrativeDivisionIdentifier> findIdentifiersByDivisionId(CountryId countryId,
+    Uni<List<AdministrativeDivisionIdentifier>> findIdentifiersByDivisionId(CountryId countryId,
             DivisionId divisionId);
 
     Uni<AdministrativeDivisionIdentifier> saveIdentifier(AdministrativeDivisionIdentifier identifier);
 
     // ── Names ──────────────────────────────────────────────────────────────
 
-    Multi<AdministrativeDivisionName> findNamesByDivisionId(CountryId countryId,
+    Uni<List<AdministrativeDivisionName>> findNamesByDivisionId(CountryId countryId,
             DivisionId divisionId);
 
     Uni<AdministrativeDivisionName> saveName(AdministrativeDivisionName name);

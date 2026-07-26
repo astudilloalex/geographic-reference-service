@@ -11,9 +11,9 @@ import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -80,31 +80,37 @@ public class GetCountryQueryService implements GetCountryQueryPort {
     }
 
     @Override
-    public Multi<CountryResponse> listAll() {
+    public Uni<List<CountryResponse>> listAll() {
         return countryRepository.findAll()
-                .onItem().transform(CountryApplicationMapper::toResponse);
+                .onItem().transform(countries -> countries.stream()
+                        .map(CountryApplicationMapper::toResponse)
+                        .toList());
     }
 
     @Override
-    public Multi<CountryResponse> listByStatus(final String status) {
+    public Uni<List<CountryResponse>> listByStatus(final String status) {
         if (status == null || status.isBlank()) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         try {
             final GeographicRecordStatus recordStatus = GeographicRecordStatus.valueOf(status.trim().toUpperCase());
             return countryRepository.findByStatus(recordStatus)
-                    .onItem().transform(CountryApplicationMapper::toResponse);
+                    .onItem().transform(countries -> countries.stream()
+                            .map(CountryApplicationMapper::toResponse)
+                            .toList());
         } catch (IllegalArgumentException _) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
     }
 
     @Override
-    public Multi<CountryNameResponse> findNamesByCountryId(final UUID countryId) {
+    public Uni<List<CountryNameResponse>> findNamesByCountryId(final UUID countryId) {
         if (countryId == null) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         return countryRepository.findNamesByCountryId(CountryId.of(countryId))
-                .onItem().transform(CountryApplicationMapper::toNameResponse);
+                .onItem().transform(names -> names.stream()
+                        .map(CountryApplicationMapper::toNameResponse)
+                        .toList());
     }
 }

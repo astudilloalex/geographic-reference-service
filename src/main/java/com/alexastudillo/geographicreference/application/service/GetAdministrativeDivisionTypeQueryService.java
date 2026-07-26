@@ -7,9 +7,9 @@ import com.alexastudillo.geographicreference.application.port.output.Administrat
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -44,26 +44,30 @@ public class GetAdministrativeDivisionTypeQueryService implements GetAdministrat
     }
 
     @Override
-    public Multi<AdministrativeDivisionTypeResponse> listByCountryId(final UUID countryId) {
+    public Uni<List<AdministrativeDivisionTypeResponse>> listByCountryId(final UUID countryId) {
         if (countryId == null) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         return repository.findByCountryId(CountryId.of(countryId))
-                .onItem().transform(AdministrativeDivisionTypeApplicationMapper::toResponse);
+                .onItem().transform(types -> types.stream()
+                        .map(AdministrativeDivisionTypeApplicationMapper::toResponse)
+                        .toList());
     }
 
     @Override
-    public Multi<AdministrativeDivisionTypeResponse> listByCountryIdAndStatus(final UUID countryId,
+    public Uni<List<AdministrativeDivisionTypeResponse>> listByCountryIdAndStatus(final UUID countryId,
             final String status) {
         if (countryId == null || status == null || status.isBlank()) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
         try {
             final GeographicRecordStatus recordStatus = GeographicRecordStatus.valueOf(status.trim().toUpperCase());
             return repository.findByCountryIdAndStatus(CountryId.of(countryId), recordStatus)
-                    .onItem().transform(AdministrativeDivisionTypeApplicationMapper::toResponse);
+                    .onItem().transform(types -> types.stream()
+                            .map(AdministrativeDivisionTypeApplicationMapper::toResponse)
+                            .toList());
         } catch (IllegalArgumentException _) {
-            return Multi.createFrom().empty();
+            return Uni.createFrom().item(List.of());
         }
     }
 }
