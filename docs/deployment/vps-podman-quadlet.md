@@ -17,6 +17,8 @@ mutable tag.
 - `curl`, `grep`, `sed`, and the standard GNU utilities.
 - A deployment user without `sudo`; the examples use `deploy`.
 - PostgreSQL reachable from the container.
+- The `internal-services.network` and `geographic-db.network` Quadlet units
+  installed for the deployment user.
 
 The native executable targets `linux/amd64`. An ARM64 VPS requires an ARM64
 GitHub runner, and the workflow's `--platform` value must also be changed.
@@ -57,6 +59,18 @@ container does not refer to the host. Use `host.containers.internal` if it is
 provided by your distribution's Podman configuration, or connect both
 containers to a Podman network and use the PostgreSQL container's DNS name.
 Do not expose PostgreSQL on the public IPv4 address.
+
+The service joins two existing Quadlet networks:
+
+- `internal-services.network`, with the
+  `geographic-reference-service` network alias, for communication between
+  internal microservices.
+- `geographic-db.network`, so the application can resolve `postgresql` and
+  connect to the geographic database.
+
+These network definitions belong to the VPS infrastructure configuration and
+must already be installed under the deployment user's Quadlet search path
+before the application workflow runs.
 
 ## 2. Read-Only GHCR Access from the VPS
 
