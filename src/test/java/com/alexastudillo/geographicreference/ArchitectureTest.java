@@ -13,6 +13,7 @@ class ArchitectureTest {
     private static final String BASE_PACKAGE = "com.alexastudillo.geographicreference";
     private static final String DOMAIN_PACKAGE = BASE_PACKAGE + ".domain..";
     private static final String APPLICATION_PACKAGE = BASE_PACKAGE + ".application..";
+    private static final String API_PACKAGE = BASE_PACKAGE + ".api..";
     private static final String INFRASTRUCTURE_PACKAGE = BASE_PACKAGE + ".infrastructure..";
 
     private final JavaClasses projectClasses = new ClassFileImporter()
@@ -40,10 +41,23 @@ class ArchitectureTest {
     }
 
     @Test
-    void innerLayersShouldNotDependOnInfrastructure() {
+    void innerLayersShouldNotDependOnOuterLayers() {
         noClasses()
                 .that().resideInAnyPackage(DOMAIN_PACKAGE, APPLICATION_PACKAGE)
+                .should().dependOnClassesThat().resideInAnyPackage(API_PACKAGE, INFRASTRUCTURE_PACKAGE)
+                .check(projectClasses);
+    }
+
+    @Test
+    void outerAdaptersShouldNotDependOnEachOther() {
+        noClasses()
+                .that().resideInAPackage(API_PACKAGE)
                 .should().dependOnClassesThat().resideInAPackage(INFRASTRUCTURE_PACKAGE)
+                .check(projectClasses);
+
+        noClasses()
+                .that().resideInAPackage(INFRASTRUCTURE_PACKAGE)
+                .should().dependOnClassesThat().resideInAPackage(API_PACKAGE)
                 .check(projectClasses);
     }
 
