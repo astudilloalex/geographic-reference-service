@@ -8,7 +8,7 @@ Image=@@IMAGE@@
 ContainerName=geographic-reference-service
 Environment=QUARKUS_PROFILE=prod
 EnvironmentFile=geographic-reference-service.env
-PublishPort=127.0.0.1:8080:8080/tcp
+PublishPort=127.0.0.1:8081:8080/tcp
 Pull=never
 NoNewPrivileges=true
 DropCapability=all

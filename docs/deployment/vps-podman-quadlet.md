@@ -131,9 +131,9 @@ deployment.
 
 ## 5. Firewall
 
-The Quadlet publishes Quarkus on `127.0.0.1:8080`, so port 8080 is not exposed
-on the public IPv4 address. Place Caddy, Nginx, or HAProxy in front of the
-service and terminate TLS there.
+The Quadlet maps `127.0.0.1:8081` on the VPS to port `8080` inside the
+container, so port 8081 is not exposed on the public IPv4 address. Place Caddy,
+Nginx, or HAProxy in front of the service and terminate TLS there.
 
 Recommended inbound rules:
 
@@ -142,7 +142,7 @@ Recommended inbound rules:
 | TCP 22, or your SSH port | GitHub runner or the Internet when using standard hosted runners | SSH deployment |
 | TCP 80 | Internet | HTTP-to-HTTPS redirection and/or ACME |
 | TCP 443 | Internet | HTTPS API through the reverse proxy |
-| TCP 8080 | None | Bound only to loopback |
+| TCP 8081 | None | Bound only to loopback and forwarded to container port 8080 |
 | TCP 5432 | None from the Internet | PostgreSQL must not be public |
 
 If the database runs on another server, allow port 5432 on **that server** only
@@ -177,7 +177,7 @@ Run these commands as the `deploy` user:
 systemctl --user status geographic-reference-service.service
 journalctl --user -u geographic-reference-service.service -f
 podman ps
-curl --fail http://127.0.0.1:8080/q/openapi
+curl --fail http://127.0.0.1:8081/q/openapi
 ```
 
 The final Quadlet is installed at:

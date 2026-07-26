@@ -11,7 +11,7 @@ readonly QUADLET_TEMPLATE="${SOURCE_DIRECTORY}/${APP_NAME}.container.template"
 readonly QUADLET_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.container"
 readonly ENVIRONMENT_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.env"
 readonly REGISTRY_AUTH_FILE="${CONFIG_HOME}/containers/auth.json"
-readonly HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8080/q/openapi}"
+readonly HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8081/q/openapi}"
 
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
