@@ -3,6 +3,7 @@ package com.alexastudillo.geographicreference.api.resource;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import com.alexastudillo.geographicreference.application.port.input.GetCountryQueryPort;
 import com.alexastudillo.geographicreference.api.dto.CountryApiResponse;
+import com.alexastudillo.geographicreference.api.dto.CountryNameLookupApiResponse;
 import com.alexastudillo.geographicreference.api.dto.CountryNameApiResponse;
 import com.alexastudillo.geographicreference.api.error.ApiException;
 import com.alexastudillo.geographicreference.api.error.ApiResponseCode;
@@ -121,6 +122,38 @@ public class CountryResource {
         return existingCountry(id)
                 .chain(ignored -> queryPort.findNamesByCountryId(id))
                 .map(items -> items.stream().map(mapper::toNameApiResponse).toList())
+                .map(responseManager::success)
+                .map(RestResponse::ok);
+    }
+
+    @GET
+    @Path("/names")
+    @Operation(
+            summary = "List localized country names",
+            description = "Returns country names filtered by ISO code type, geographic name type, and BCP 47 language tag"
+    )
+    public Uni<RestResponse<ApiResponse<List<CountryNameLookupApiResponse>>>> findNames(
+            @Parameter(
+                    description = "ISO code returned for each country: ALPHA2, ALPHA3, or NUMERIC",
+                    required = true
+            )
+            @QueryParam("codeType") final String codeType,
+            @Parameter(
+                    description = "OFFICIAL, COMMON, SHORT, ALTERNATIVE, or HISTORICAL",
+                    required = true
+            )
+            @QueryParam("nameType") final String nameType,
+            @Parameter(
+                    description = "BCP 47 language tag, for example es, en, or es-EC",
+                    required = true
+            )
+            @QueryParam("languageTag") final String languageTag
+    ) {
+        return queryPort.findNames(
+                        validator.countryCodeType(codeType),
+                        validator.nameType(nameType),
+                        validator.languageTag(languageTag))
+                .map(items -> items.stream().map(mapper::toNameLookupApiResponse).toList())
                 .map(responseManager::success)
                 .map(RestResponse::ok);
     }

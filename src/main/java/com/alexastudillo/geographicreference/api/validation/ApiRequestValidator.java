@@ -2,7 +2,11 @@ package com.alexastudillo.geographicreference.api.validation;
 
 import com.alexastudillo.geographicreference.api.error.ApiException;
 import com.alexastudillo.geographicreference.api.error.ApiResponseCode;
+import com.alexastudillo.geographicreference.domain.exception.DomainException;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
+import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
+import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Locale;
@@ -51,6 +55,32 @@ public class ApiRequestValidator {
             return GeographicRecordStatus.valueOf(normalized).name();
         } catch (IllegalArgumentException _) {
             throw new ApiException(ApiResponseCode.INVALID_STATUS);
+        }
+    }
+
+    public String countryCodeType(final String value) {
+        final String normalized = code(value);
+        try {
+            return CountryCodeType.valueOf(normalized).name();
+        } catch (IllegalArgumentException _) {
+            throw new ApiException(ApiResponseCode.BAD_REQUEST);
+        }
+    }
+
+    public String nameType(final String value) {
+        final String normalized = code(value);
+        try {
+            return GeographicNameType.valueOf(normalized).name();
+        } catch (IllegalArgumentException _) {
+            throw new ApiException(ApiResponseCode.BAD_REQUEST);
+        }
+    }
+
+    public String languageTag(final String value) {
+        try {
+            return LanguageTag.of(required(value)).value();
+        } catch (DomainException _) {
+            throw new ApiException(ApiResponseCode.BAD_REQUEST);
         }
     }
 

@@ -1,10 +1,12 @@
 package com.alexastudillo.geographicreference.application.service;
 
+import com.alexastudillo.geographicreference.application.dto.CountryNameLookupResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import com.alexastudillo.geographicreference.application.port.output.CountryRepository;
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
@@ -15,6 +17,7 @@ import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import com.alexastudillo.geographicreference.domain.model.valobj.SourceProvenance;
 import com.alexastudillo.geographicreference.domain.model.valobj.ValidityPeriod;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -160,5 +163,43 @@ class GetCountryQueryServiceTest {
 
         assertThat(names).hasSize(1);
         assertThat(names.get(0).name()).isEqualTo("República del Ecuador");
+    }
+
+    @Test
+    void shouldFindNamesByCodeTypeNameTypeAndLanguageTag() {
+        final CountryNameLookup lookup = new CountryNameLookup(
+                CountryCodeType.ALPHA2,
+                "EC",
+                LanguageTag.of("es"),
+                GeographicNameType.COMMON,
+                "Ecuador",
+                true);
+        when(countryRepository.findNames(
+                CountryCodeType.ALPHA2,
+                GeographicNameType.COMMON,
+                LanguageTag.of("ES")))
+                .thenReturn(Uni.createFrom().item(List.of(lookup)));
+
+        final List<CountryNameLookupResponse> names =
+                service.findNames(" alpha2 ", " common ", "ES").await().indefinitely();
+
+        assertThat(names).singleElement().satisfies(name -> {
+            assertThat(name.codeType()).isEqualTo("ALPHA2");
+            assertThat(name.code()).isEqualTo("EC");
+            assertThat(name.languageTag()).isEqualTo("es");
+            assertThat(name.nameType()).isEqualTo("COMMON");
+            assertThat(name.name()).isEqualTo("Ecuador");
+            assertThat(name.preferred()).isTrue();
+        });
+    }
+
+    @Test
+    void shouldReturnEmptyCountryNameLookupForInvalidFilters() {
+        assertThat(service.findNames(null, "COMMON", "es").await().indefinitely()).isEmpty();
+        assertThat(service.findNames("ALPHA2", null, "es").await().indefinitely()).isEmpty();
+        assertThat(service.findNames("ALPHA2", "COMMON", null).await().indefinitely()).isEmpty();
+        assertThat(service.findNames("UUID", "COMMON", "es").await().indefinitely()).isEmpty();
+        assertThat(service.findNames("ALPHA2", "CANONICAL", "es").await().indefinitely()).isEmpty();
+        assertThat(service.findNames("ALPHA2", "COMMON", "not_a_tag").await().indefinitely()).isEmpty();
     }
 }

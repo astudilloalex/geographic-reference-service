@@ -3,10 +3,14 @@ package com.alexastudillo.geographicreference.infrastructure.persistence.postgre
 import com.alexastudillo.geographicreference.application.port.output.CountryRepository;
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
+import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
+import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import com.alexastudillo.geographicreference.domain.utils.LogUtil;
 import io.smallrye.mutiny.Uni;
@@ -74,6 +78,23 @@ public class PostgreSqlCountryRepository implements CountryRepository {
               FROM country_names
              WHERE country_id = $1
              ORDER BY language_tag, name_type, name, id
+            """;
+
+    private static final String FIND_NAMES = """
+            SELECT CASE CAST($3 AS VARCHAR)
+                       WHEN 'ALPHA2' THEN TRIM(c.alpha2_code)
+                       WHEN 'ALPHA3' THEN TRIM(c.alpha3_code)
+                       ELSE TRIM(c.numeric_code)
+                   END AS code,
+                   cn.language_tag,
+                   cn.name_type::text AS name_type,
+                   cn.name,
+                   cn.is_preferred
+              FROM country_names cn
+              JOIN countries c ON c.id = cn.country_id
+             WHERE cn.name_type = $1::geographic_name_type
+               AND LOWER(cn.language_tag) = LOWER($2)
+             ORDER BY code, cn.is_preferred DESC, cn.name, cn.id
             """;
 
     private final Pool pool;
@@ -154,6 +175,26 @@ public class PostgreSqlCountryRepository implements CountryRepository {
                 .execute(Tuple.of(countryId.value()))
                 .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountryName)),
                 "findNamesByCountryId");
+    }
+
+    @Override
+    public Uni<List<CountryNameLookup>> findNames(
+            final CountryCodeType codeType,
+            final GeographicNameType nameType,
+            final LanguageTag languageTag
+    ) {
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding country names: codeType=%s, nameType=%s, languageTag=%s",
+                codeType,
+                nameType,
+                languageTag.value()));
+        return logFailure(pool.preparedQuery(FIND_NAMES)
+                .execute(Tuple.of(nameType.name(), languageTag.value(), codeType.name()))
+                .onItem().transform(rows -> rowSetMapper.toList(
+                        rows,
+                        row -> rowMapper.toCountryNameLookup(row, codeType))),
+                "findNames");
     }
 
     private <T> Uni<T> logFailure(final Uni<T> operation, final String operationName) {

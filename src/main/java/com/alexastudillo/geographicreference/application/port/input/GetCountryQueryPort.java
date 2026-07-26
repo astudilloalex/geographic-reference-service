@@ -1,6 +1,7 @@
 package com.alexastudillo.geographicreference.application.port.input;
 
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
+import com.alexastudillo.geographicreference.application.dto.CountryNameLookupResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import io.smallrye.mutiny.Uni;
 
@@ -25,4 +26,10 @@ public interface GetCountryQueryPort {
     Uni<List<CountryResponse>> listByStatus(String status);
 
     Uni<List<CountryNameResponse>> findNamesByCountryId(UUID countryId);
+
+    Uni<List<CountryNameLookupResponse>> findNames(
+            String codeType,
+            String nameType,
+            String languageTag
+    );
 }

@@ -120,12 +120,52 @@ class GeographicReferenceApiTest {
     }
 
     @Test
+    void shouldListLocalizedCountryNamesUsingTheSelectedCodeType() {
+        given()
+                .queryParam("codeType", "alpha2")
+                .queryParam("nameType", "common")
+                .queryParam("languageTag", "ES")
+                .when().get("/api/v1/countries/names")
+                .then()
+                .statusCode(200)
+                .body("data", hasSize(1))
+                .body("data[0].codeType", equalTo("ALPHA2"))
+                .body("data[0].code", equalTo("EC"))
+                .body("data[0].languageTag", equalTo("es"))
+                .body("data[0].nameType", equalTo("COMMON"))
+                .body("data[0].name", equalTo("Ecuador"))
+                .body("data[0].preferred", equalTo(true));
+
+        given()
+                .queryParam("codeType", "NUMERIC")
+                .queryParam("nameType", "COMMON")
+                .queryParam("languageTag", "es")
+                .when().get("/api/v1/countries/names")
+                .then()
+                .statusCode(200)
+                .body("data[0].code", equalTo("218"));
+    }
+
+    @Test
     void shouldRejectInvalidCountryParametersAndReportMissingCountries() {
         assertError("/api/v1/countries/not-a-uuid", 400, "invalid-uuid");
         assertError("/api/v1/countries/by-alpha2/E", 400, "bad-request");
         assertError("/api/v1/countries/by-alpha3/E1U", 400, "bad-request");
         assertError("/api/v1/countries/by-numeric/2A8", 400, "bad-request");
         assertError("/api/v1/countries?status=unknown", 400, "invalid-status");
+        assertError("/api/v1/countries/names?nameType=COMMON&languageTag=es", 400, "bad-request");
+        assertError(
+                "/api/v1/countries/names?codeType=UUID&nameType=COMMON&languageTag=es",
+                400,
+                "bad-request");
+        assertError(
+                "/api/v1/countries/names?codeType=ALPHA2&nameType=CANONICAL&languageTag=es",
+                400,
+                "bad-request");
+        assertError(
+                "/api/v1/countries/names?codeType=ALPHA2&nameType=COMMON&languageTag=not_a_tag",
+                400,
+                "bad-request");
         assertError("/api/v1/countries/" + UNKNOWN_ID, 404, "country-not-found");
         assertError("/api/v1/countries/" + UNKNOWN_ID + "/names", 404, "country-not-found");
     }

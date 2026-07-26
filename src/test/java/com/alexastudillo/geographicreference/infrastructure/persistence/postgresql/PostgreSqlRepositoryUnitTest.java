@@ -1,5 +1,7 @@
 package com.alexastudillo.geographicreference.infrastructure.persistence.postgresql;
 
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
+import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
@@ -7,6 +9,7 @@ import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
+import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.PreparedQuery;
@@ -68,6 +71,11 @@ class PostgreSqlRepositoryUnitTest {
         assertThat(repository.findByStatus(GeographicRecordStatus.ACTIVE).await().indefinitely()).isEmpty();
         assertThat(repository.findAll().await().indefinitely()).isEmpty();
         assertThat(repository.findNamesByCountryId(COUNTRY_ID).await().indefinitely()).isEmpty();
+        assertThat(repository.findNames(
+                CountryCodeType.ALPHA2,
+                GeographicNameType.COMMON,
+                LanguageTag.of("es"))
+                .await().indefinitely()).isEmpty();
     }
 
     @Test

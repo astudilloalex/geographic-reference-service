@@ -23,6 +23,9 @@ class ApiRequestValidatorTest {
         assertThat(validator.numericCode(" 218 ")).isEqualTo("218");
         assertThat(validator.code(" province ")).isEqualTo("PROVINCE");
         assertThat(validator.status(" active ")).isEqualTo("ACTIVE");
+        assertThat(validator.countryCodeType(" alpha2 ")).isEqualTo("ALPHA2");
+        assertThat(validator.nameType(" common ")).isEqualTo("COMMON");
+        assertThat(validator.languageTag(" es-EC ")).isEqualTo("es-EC");
         assertThat(validator.root("TRUE")).isTrue();
         assertThat(validator.invalidFilters().responseCode())
                 .isEqualTo(ApiResponseCode.INVALID_FILTER_COMBINATION);
@@ -38,6 +41,10 @@ class ApiRequestValidatorTest {
         assertCode(() -> validator.numericCode("21A"), ApiResponseCode.BAD_REQUEST);
         assertCode(() -> validator.code(" "), ApiResponseCode.BAD_REQUEST);
         assertCode(() -> validator.status("unknown"), ApiResponseCode.INVALID_STATUS);
+        assertCode(() -> validator.countryCodeType("uuid"), ApiResponseCode.BAD_REQUEST);
+        assertCode(() -> validator.nameType("canonical"), ApiResponseCode.BAD_REQUEST);
+        assertCode(() -> validator.languageTag("not_a_language"), ApiResponseCode.BAD_REQUEST);
+        assertCode(() -> validator.languageTag(" "), ApiResponseCode.BAD_REQUEST);
         assertCode(() -> validator.root("false"), ApiResponseCode.INVALID_FILTER_COMBINATION);
     }
 

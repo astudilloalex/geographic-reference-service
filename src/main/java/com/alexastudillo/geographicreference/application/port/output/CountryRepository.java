@@ -2,10 +2,14 @@ package com.alexastudillo.geographicreference.application.port.output;
 
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
+import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
+import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import io.smallrye.mutiny.Uni;
 
@@ -34,4 +38,10 @@ public interface CountryRepository {
     // ── Country Names ──────────────────────────────────────────────────────
 
     Uni<List<CountryName>> findNamesByCountryId(CountryId countryId);
+
+    Uni<List<CountryNameLookup>> findNames(
+            CountryCodeType codeType,
+            GeographicNameType nameType,
+            LanguageTag languageTag
+    );
 }

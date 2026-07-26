@@ -1,15 +1,19 @@
 package com.alexastudillo.geographicreference.application.service;
 
+import com.alexastudillo.geographicreference.application.dto.CountryNameLookupResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import com.alexastudillo.geographicreference.application.mapper.CountryApplicationMapper;
 import com.alexastudillo.geographicreference.application.port.input.GetCountryQueryPort;
 import com.alexastudillo.geographicreference.application.port.output.CountryRepository;
 import com.alexastudillo.geographicreference.domain.exception.DomainException;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
+import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
+import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import io.smallrye.mutiny.Uni;
 
@@ -112,5 +116,34 @@ public class GetCountryQueryService implements GetCountryQueryPort {
                 .onItem().transform(names -> names.stream()
                         .map(CountryApplicationMapper::toNameResponse)
                         .toList());
+    }
+
+    @Override
+    public Uni<List<CountryNameLookupResponse>> findNames(
+            final String codeType,
+            final String nameType,
+            final String languageTag
+    ) {
+        if (isBlank(codeType) || isBlank(nameType) || isBlank(languageTag)) {
+            return Uni.createFrom().item(List.of());
+        }
+        try {
+            final CountryCodeType selectedCodeType =
+                    CountryCodeType.valueOf(codeType.trim().toUpperCase());
+            final GeographicNameType selectedNameType =
+                    GeographicNameType.valueOf(nameType.trim().toUpperCase());
+            final LanguageTag selectedLanguageTag = LanguageTag.of(languageTag.trim());
+
+            return countryRepository.findNames(selectedCodeType, selectedNameType, selectedLanguageTag)
+                    .onItem().transform(names -> names.stream()
+                            .map(CountryApplicationMapper::toNameLookupResponse)
+                            .toList());
+        } catch (IllegalArgumentException | DomainException _) {
+            return Uni.createFrom().item(List.of());
+        }
+    }
+
+    private static boolean isBlank(final String value) {
+        return value == null || value.isBlank();
     }
 }

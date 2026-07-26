@@ -3,12 +3,15 @@ package com.alexastudillo.geographicreference.infrastructure.persistence.postgre
 import com.alexastudillo.geographicreference.application.port.output.CountryRepository;
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
+import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.mutiny.sqlclient.Pool;
 import jakarta.inject.Inject;
@@ -102,5 +105,40 @@ class PostgreSqlCountryRepositoryTest {
         assertThat(names.getFirst().validityPeriod().validFrom()).isEqualTo(LocalDate.parse("1830-05-13"));
         assertThat(names.getFirst().auditInfo().version()).isZero();
         assertThat(repository.findNamesByCountryId(COLOMBIA_ID).await().indefinitely()).isEmpty();
+    }
+
+    @Test
+    void shouldFindLocalizedNamesUsingEveryCountryCodeType() {
+        final List<CountryNameLookup> alpha2Names = repository.findNames(
+                CountryCodeType.ALPHA2,
+                GeographicNameType.COMMON,
+                LanguageTag.of("ES"))
+                .await().indefinitely();
+        final List<CountryNameLookup> alpha3Names = repository.findNames(
+                CountryCodeType.ALPHA3,
+                GeographicNameType.COMMON,
+                LanguageTag.of("es"))
+                .await().indefinitely();
+        final List<CountryNameLookup> numericNames = repository.findNames(
+                CountryCodeType.NUMERIC,
+                GeographicNameType.COMMON,
+                LanguageTag.of("es"))
+                .await().indefinitely();
+
+        assertThat(alpha2Names).singleElement().satisfies(name -> {
+            assertThat(name.codeType()).isEqualTo(CountryCodeType.ALPHA2);
+            assertThat(name.code()).isEqualTo("EC");
+            assertThat(name.languageTag().value()).isEqualTo("es");
+            assertThat(name.nameType()).isEqualTo(GeographicNameType.COMMON);
+            assertThat(name.name()).isEqualTo("Ecuador");
+            assertThat(name.preferred()).isTrue();
+        });
+        assertThat(alpha3Names).extracting(CountryNameLookup::code).containsExactly("ECU");
+        assertThat(numericNames).extracting(CountryNameLookup::code).containsExactly("218");
+        assertThat(repository.findNames(
+                CountryCodeType.ALPHA2,
+                GeographicNameType.HISTORICAL,
+                LanguageTag.of("es"))
+                .await().indefinitely()).isEmpty();
     }
 }

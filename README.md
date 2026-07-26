@@ -24,6 +24,42 @@ Every `/api` request uses the following headers:
 
 The `/q` management endpoints do not require these headers. Request bodies, response bodies, authorization headers, and cookies are not written to application logs.
 
+## Localized country-name lookup
+
+Use `GET /api/v1/countries/names` to obtain country names for a selected ISO
+3166-1 code type, geographic name type, and BCP 47 language tag.
+
+Required query parameters:
+
+- `codeType`: `ALPHA2`, `ALPHA3`, or `NUMERIC`.
+- `nameType`: `OFFICIAL`, `COMMON`, `SHORT`, `ALTERNATIVE`, or `HISTORICAL`.
+- `languageTag`: a BCP 47 language tag such as `es`, `en`, or `es-EC`.
+
+For example:
+
+```http
+GET /api/v1/countries/names?codeType=ALPHA2&nameType=COMMON&languageTag=es
+process-id: 61c55f47-e889-4a34-b61d-07bb060ab496
+user-id: api-client
+```
+
+```json
+{
+  "status": 200,
+  "code": "successful",
+  "data": [
+    {
+      "codeType": "ALPHA2",
+      "code": "EC",
+      "languageTag": "es",
+      "nameType": "COMMON",
+      "name": "Ecuador",
+      "preferred": true
+    }
+  ]
+}
+```
+
 ## Packaging and running the application
 
 The application can be packaged using:

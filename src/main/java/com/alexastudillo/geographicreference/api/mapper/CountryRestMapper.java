@@ -1,7 +1,9 @@
 package com.alexastudillo.geographicreference.api.mapper;
 
 import com.alexastudillo.geographicreference.api.dto.CountryApiResponse;
+import com.alexastudillo.geographicreference.api.dto.CountryNameLookupApiResponse;
 import com.alexastudillo.geographicreference.api.dto.CountryNameApiResponse;
+import com.alexastudillo.geographicreference.application.dto.CountryNameLookupResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -47,6 +49,17 @@ public class CountryRestMapper {
                 source.updatedAt(),
                 source.updatedBy(),
                 source.version()
+        );
+    }
+
+    public CountryNameLookupApiResponse toNameLookupApiResponse(final CountryNameLookupResponse source) {
+        return new CountryNameLookupApiResponse(
+                source.codeType(),
+                source.code(),
+                source.languageTag(),
+                source.nameType(),
+                source.name(),
+                source.preferred()
         );
     }
 }

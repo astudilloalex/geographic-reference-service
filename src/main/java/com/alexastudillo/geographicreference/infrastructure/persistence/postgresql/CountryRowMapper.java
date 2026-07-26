@@ -2,6 +2,7 @@ package com.alexastudillo.geographicreference.infrastructure.persistence.postgre
 
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
@@ -12,6 +13,7 @@ import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import com.alexastudillo.geographicreference.domain.model.valobj.SourceProvenance;
 import com.alexastudillo.geographicreference.domain.model.valobj.ValidityPeriod;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 import io.vertx.mutiny.sqlclient.Row;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -47,6 +49,17 @@ public class CountryRowMapper {
                 row.getBoolean("is_preferred"),
                 validityPeriod(row),
                 auditInfo(row)
+        );
+    }
+
+    public CountryNameLookup toCountryNameLookup(final Row row, final CountryCodeType codeType) {
+        return new CountryNameLookup(
+                codeType,
+                row.getString("code").trim(),
+                LanguageTag.of(row.getString("language_tag")),
+                GeographicNameType.valueOf(row.getString("name_type")),
+                row.getString("name"),
+                row.getBoolean("is_preferred")
         );
     }
 

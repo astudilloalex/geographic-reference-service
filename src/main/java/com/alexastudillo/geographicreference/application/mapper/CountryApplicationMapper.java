@@ -1,9 +1,11 @@
 package com.alexastudillo.geographicreference.application.mapper;
 
+import com.alexastudillo.geographicreference.application.dto.CountryNameLookupResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 
 /**
  * Pure Java mapper for converting Country domain entities to DTO responses.
@@ -58,6 +60,20 @@ public final class CountryApplicationMapper {
                 countryName.auditInfo().updatedAt(),
                 countryName.auditInfo().updatedBy(),
                 countryName.auditInfo().version()
+        );
+    }
+
+    public static CountryNameLookupResponse toNameLookupResponse(final CountryNameLookup countryName) {
+        if (countryName == null) {
+            return null;
+        }
+        return new CountryNameLookupResponse(
+                countryName.codeType().name(),
+                countryName.code(),
+                countryName.languageTag().value(),
+                countryName.nameType().name(),
+                countryName.name(),
+                countryName.preferred()
         );
     }
 }

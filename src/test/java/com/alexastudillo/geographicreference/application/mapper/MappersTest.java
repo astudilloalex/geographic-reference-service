@@ -11,6 +11,7 @@ import com.alexastudillo.geographicreference.application.dto.AdministrativeDivis
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionResponse;
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionTypeResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
+import com.alexastudillo.geographicreference.application.dto.CountryNameLookupResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
 import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeDivision;
 import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeDivisionIdentifier;
@@ -19,6 +20,7 @@ import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeD
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicIdentifierStatus;
+import com.alexastudillo.geographicreference.domain.model.enums.CountryCodeType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
@@ -31,6 +33,7 @@ import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import com.alexastudillo.geographicreference.domain.model.valobj.SourceProvenance;
 import com.alexastudillo.geographicreference.domain.model.valobj.ValidityPeriod;
+import com.alexastudillo.geographicreference.domain.model.projection.CountryNameLookup;
 
 class MappersTest {
 
@@ -45,6 +48,7 @@ class MappersTest {
     void testCountryApplicationMapper() {
         assertThat(CountryApplicationMapper.toResponse(null)).isNull();
         assertThat(CountryApplicationMapper.toNameResponse(null)).isNull();
+        assertThat(CountryApplicationMapper.toNameLookupResponse(null)).isNull();
 
         final Country country = new Country(
                 countryId,
@@ -89,6 +93,22 @@ class MappersTest {
         assertThat(nameResponse.nameType()).isEqualTo("OFFICIAL");
         assertThat(nameResponse.name()).isEqualTo("República del Ecuador");
         assertThat(nameResponse.preferred()).isTrue();
+
+        final CountryNameLookup lookup = new CountryNameLookup(
+                CountryCodeType.ALPHA2,
+                "EC",
+                LanguageTag.of("es"),
+                GeographicNameType.COMMON,
+                "Ecuador",
+                true);
+        final CountryNameLookupResponse lookupResponse =
+                CountryApplicationMapper.toNameLookupResponse(lookup);
+        assertThat(lookupResponse.codeType()).isEqualTo("ALPHA2");
+        assertThat(lookupResponse.code()).isEqualTo("EC");
+        assertThat(lookupResponse.languageTag()).isEqualTo("es");
+        assertThat(lookupResponse.nameType()).isEqualTo("COMMON");
+        assertThat(lookupResponse.name()).isEqualTo("Ecuador");
+        assertThat(lookupResponse.preferred()).isTrue();
     }
 
     @Test
@@ -116,10 +136,14 @@ class MappersTest {
     }
 
     @Test
-    void testAdministrativeDivisionApplicationMapper() {
+    void testAdministrativeDivisionApplicationMapperNullInputs() {
         assertThat(AdministrativeDivisionApplicationMapper.toResponse(null)).isNull();
         assertThat(AdministrativeDivisionApplicationMapper.toIdentifierResponse(null)).isNull();
         assertThat(AdministrativeDivisionApplicationMapper.toNameResponse(null)).isNull();
+    }
+
+    @Test
+    void testAdministrativeDivisionApplicationMapper() {
 
         final DivisionId parentId = DivisionId.of(UUID.randomUUID());
         final AdministrativeDivision division = new AdministrativeDivision(
