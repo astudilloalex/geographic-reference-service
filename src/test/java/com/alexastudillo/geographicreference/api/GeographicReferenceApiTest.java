@@ -1,14 +1,25 @@
 package com.alexastudillo.geographicreference.api;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.RestAssured;
+import io.restassured.filter.Filter;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.alexastudillo.geographicreference.api.logging.MDCRequestFilter.COMPANY_ID_HEADER;
+import static com.alexastudillo.geographicreference.api.logging.MDCRequestFilter.PROCESS_ID_HEADER;
+import static com.alexastudillo.geographicreference.api.logging.MDCRequestFilter.USER_ID_HEADER;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.matchesPattern;
 
 @QuarkusTest
 class GeographicReferenceApiTest {
@@ -20,6 +31,31 @@ class GeographicReferenceApiTest {
     private static final String PICHINCHA_ID = "30000000-0000-7000-8000-000000000002";
     private static final String QUITO_ID = "30000000-0000-7000-8000-000000000003";
     private static final String UNKNOWN_ID = "90000000-0000-7000-8000-000000000099";
+    private static final String PROCESS_ID = "61c55f47-e889-4a34-b61d-07bb060ab496";
+    private static final String USER_ID = "geographic-reference-api-test";
+
+    private static List<Filter> originalFilters;
+
+    @BeforeAll
+    static void configureRequestLoggingHeaders() {
+        originalFilters = List.copyOf(RestAssured.filters());
+        final List<Filter> filters = new ArrayList<>(originalFilters);
+        filters.add((request, response, context) -> {
+            if (!request.getHeaders().hasHeaderWithName(PROCESS_ID_HEADER)) {
+                request.header(PROCESS_ID_HEADER, PROCESS_ID);
+            }
+            if (!request.getHeaders().hasHeaderWithName(USER_ID_HEADER)) {
+                request.header(USER_ID_HEADER, USER_ID);
+            }
+            return context.next(request, response);
+        });
+        RestAssured.replaceFiltersWith(filters);
+    }
+
+    @AfterAll
+    static void restoreFilters() {
+        RestAssured.replaceFiltersWith(originalFilters);
+    }
 
     @Test
     void shouldListAndFilterCountriesWithStandardEnvelope() {
@@ -27,6 +63,7 @@ class GeographicReferenceApiTest {
                 .when().get("/api/v1/countries")
                 .then()
                 .statusCode(200)
+                .header(PROCESS_ID_HEADER, equalTo(PROCESS_ID))
                 .body("status", equalTo(200))
                 .body("code", equalTo("successful"))
                 .body("data.alpha2Code", contains("CO", "EC"))
@@ -265,6 +302,47 @@ class GeographicReferenceApiTest {
                 404,
                 "administrative-division-not-found"
         );
+    }
+
+    @Test
+    void shouldValidateAndPropagateRequestLoggingHeaders() {
+        given()
+                .header(PROCESS_ID_HEADER, "")
+                .when().get("/api/v1/countries")
+                .then()
+                .statusCode(200)
+                .header(
+                        PROCESS_ID_HEADER,
+                        matchesPattern("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
+
+        given()
+                .header(PROCESS_ID_HEADER, "not-a-uuid")
+                .when().get("/api/v1/countries")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("bad-request"));
+
+        given()
+                .header(USER_ID_HEADER, " ")
+                .when().get("/api/v1/countries")
+                .then()
+                .statusCode(400)
+                .header(PROCESS_ID_HEADER, equalTo(PROCESS_ID))
+                .body("code", equalTo("bad-request"));
+
+        given()
+                .header(USER_ID_HEADER, "x".repeat(129))
+                .when().get("/api/v1/countries")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("bad-request"));
+
+        given()
+                .header(COMPANY_ID_HEADER, "not-a-uuid")
+                .when().get("/api/v1/countries")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("bad-request"));
     }
 
     @Test

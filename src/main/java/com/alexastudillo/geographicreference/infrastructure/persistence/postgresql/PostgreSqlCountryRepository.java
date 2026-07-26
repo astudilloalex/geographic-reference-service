@@ -8,10 +8,12 @@ import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
+import com.alexastudillo.geographicreference.domain.utils.LogUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Objects;
@@ -20,7 +22,10 @@ import java.util.Objects;
  * Reactive PostgreSQL adapter for country read operations.
  */
 @ApplicationScoped
+@Slf4j
 public class PostgreSqlCountryRepository implements CountryRepository {
+
+    private static final String REPOSITORY = "POSTGRESQL COUNTRY REPOSITORY";
 
     private static final String SELECT_COUNTRY = """
             SELECT id,
@@ -87,50 +92,73 @@ public class PostgreSqlCountryRepository implements CountryRepository {
 
     @Override
     public Uni<Country> findById(final CountryId id) {
-        return pool.preparedQuery(FIND_BY_ID)
+        log.info(LogUtil.log(REPOSITORY, "Start finding country by id: id=%s", id.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_ID)
                 .execute(Tuple.of(id.value()))
-                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry));
+                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry)),
+                "findById");
     }
 
     @Override
     public Uni<Country> findByAlpha2Code(final Alpha2Code code) {
-        return pool.preparedQuery(FIND_BY_ALPHA2)
+        log.info(LogUtil.log(REPOSITORY, "Start finding country by alpha-2 code: code=%s", code.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_ALPHA2)
                 .execute(Tuple.of(code.value()))
-                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry));
+                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry)),
+                "findByAlpha2Code");
     }
 
     @Override
     public Uni<Country> findByAlpha3Code(final Alpha3Code code) {
-        return pool.preparedQuery(FIND_BY_ALPHA3)
+        log.info(LogUtil.log(REPOSITORY, "Start finding country by alpha-3 code: code=%s", code.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_ALPHA3)
                 .execute(Tuple.of(code.value()))
-                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry));
+                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry)),
+                "findByAlpha3Code");
     }
 
     @Override
     public Uni<Country> findByNumericCode(final NumericCode code) {
-        return pool.preparedQuery(FIND_BY_NUMERIC)
+        log.info(LogUtil.log(REPOSITORY, "Start finding country by numeric code: code=%s", code.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_NUMERIC)
                 .execute(Tuple.of(code.value()))
-                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry));
+                .onItem().transform(rows -> rowSetMapper.firstOrNull(rows, rowMapper::toCountry)),
+                "findByNumericCode");
     }
 
     @Override
     public Uni<List<Country>> findByStatus(final GeographicRecordStatus status) {
-        return pool.preparedQuery(FIND_BY_STATUS)
+        log.info(LogUtil.log(REPOSITORY, "Start finding countries by status: status=%s", status));
+        return logFailure(pool.preparedQuery(FIND_BY_STATUS)
                 .execute(Tuple.of(status.name()))
-                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountry));
+                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountry)),
+                "findByStatus");
     }
 
     @Override
     public Uni<List<Country>> findAll() {
-        return pool.preparedQuery(FIND_ALL)
+        log.info(LogUtil.log(REPOSITORY, "Start finding all countries"));
+        return logFailure(pool.preparedQuery(FIND_ALL)
                 .execute()
-                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountry));
+                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountry)),
+                "findAll");
     }
 
     @Override
     public Uni<List<CountryName>> findNamesByCountryId(final CountryId countryId) {
-        return pool.preparedQuery(FIND_NAMES_BY_COUNTRY_ID)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding country names: countryId=%s",
+                countryId.value()));
+        return logFailure(pool.preparedQuery(FIND_NAMES_BY_COUNTRY_ID)
                 .execute(Tuple.of(countryId.value()))
-                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountryName));
+                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toCountryName)),
+                "findNamesByCountryId");
+    }
+
+    private <T> Uni<T> logFailure(final Uni<T> operation, final String operationName) {
+        return operation.onFailure().invoke(failure -> log.error(
+                LogUtil.log(REPOSITORY, "Error executing repository operation: operation=%s", operationName),
+                failure));
     }
 }

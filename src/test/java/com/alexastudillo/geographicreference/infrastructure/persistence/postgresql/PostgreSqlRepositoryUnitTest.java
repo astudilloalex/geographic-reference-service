@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -100,5 +101,26 @@ class PostgreSqlRepositoryUnitTest {
         assertThat(repository.findIdentifiersByDivisionId(COUNTRY_ID, DIVISION_ID)
                 .await().indefinitely()).isEmpty();
         assertThat(repository.findNamesByDivisionId(COUNTRY_ID, DIVISION_ID).await().indefinitely()).isEmpty();
+    }
+
+    @Test
+    void shouldLogAndPropagateReactiveRepositoryFailures() {
+        final IllegalStateException failure = new IllegalStateException("database unavailable");
+        when(pool.preparedQuery(any(String.class))).thenReturn(query);
+        when(query.execute(any(Tuple.class))).thenReturn(Uni.createFrom().failure(failure));
+
+        final PostgreSqlCountryRepository countryRepository =
+                new PostgreSqlCountryRepository(pool, countryRowMapper, rowSetMapper);
+        final PostgreSqlAdministrativeDivisionTypeRepository divisionTypeRepository =
+                new PostgreSqlAdministrativeDivisionTypeRepository(pool, divisionTypeRowMapper, rowSetMapper);
+        final PostgreSqlAdministrativeDivisionRepository divisionRepository =
+                new PostgreSqlAdministrativeDivisionRepository(pool, divisionRowMapper, rowSetMapper);
+
+        assertThatThrownBy(() -> countryRepository.findById(COUNTRY_ID).await().indefinitely())
+                .isSameAs(failure);
+        assertThatThrownBy(() -> divisionTypeRepository.findById(TYPE_ID).await().indefinitely())
+                .isSameAs(failure);
+        assertThatThrownBy(() -> divisionRepository.findById(DIVISION_ID).await().indefinitely())
+                .isSameAs(failure);
     }
 }

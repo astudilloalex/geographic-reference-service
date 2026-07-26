@@ -8,10 +8,12 @@ import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecord
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
+import com.alexastudillo.geographicreference.domain.utils.LogUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Objects;
@@ -20,7 +22,10 @@ import java.util.Objects;
  * Reactive PostgreSQL adapter for administrative division reads.
  */
 @ApplicationScoped
+@Slf4j
 public class PostgreSqlAdministrativeDivisionRepository implements AdministrativeDivisionRepository {
+
+    private static final String REPOSITORY = "POSTGRESQL ADMINISTRATIVE DIVISION REPOSITORY";
 
     private static final String SELECT_DIVISION = """
             SELECT id,
@@ -123,12 +128,16 @@ public class PostgreSqlAdministrativeDivisionRepository implements Administrativ
 
     @Override
     public Uni<AdministrativeDivision> findById(final DivisionId id) {
-        return pool.preparedQuery(FIND_BY_ID)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative division by id: id=%s",
+                id.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_ID)
                 .execute(Tuple.of(id.value()))
                 .onItem().transform(rows -> rowSetMapper.firstOrNull(
                         rows,
                         rowMapper::toAdministrativeDivision
-                ));
+                )), "findById");
     }
 
     @Override
@@ -136,22 +145,31 @@ public class PostgreSqlAdministrativeDivisionRepository implements Administrativ
             final CountryId countryId,
             final String canonicalCode
     ) {
-        return pool.preparedQuery(FIND_BY_CANONICAL_CODE)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative division by canonical code: countryId=%s, code=%s",
+                countryId.value(),
+                canonicalCode));
+        return logFailure(pool.preparedQuery(FIND_BY_CANONICAL_CODE)
                 .execute(Tuple.of(countryId.value(), canonicalCode))
                 .onItem().transform(rows -> rowSetMapper.firstOrNull(
                         rows,
                         rowMapper::toAdministrativeDivision
-                ));
+                )), "findByCanonicalCode");
     }
 
     @Override
     public Uni<List<AdministrativeDivision>> findByCountryId(final CountryId countryId) {
-        return pool.preparedQuery(FIND_BY_COUNTRY)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative divisions: countryId=%s",
+                countryId.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_COUNTRY)
                 .execute(Tuple.of(countryId.value()))
                 .onItem().transform(rows -> rowSetMapper.toList(
                         rows,
                         rowMapper::toAdministrativeDivision
-                ));
+                )), "findByCountryId");
     }
 
     @Override
@@ -159,12 +177,17 @@ public class PostgreSqlAdministrativeDivisionRepository implements Administrativ
             final CountryId countryId,
             final DivisionId parentId
     ) {
-        return pool.preparedQuery(FIND_BY_PARENT)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative divisions by parent: countryId=%s, parentId=%s",
+                countryId.value(),
+                parentId == null ? null : parentId.value()));
+        return logFailure(pool.preparedQuery(FIND_BY_PARENT)
                 .execute(Tuple.of(countryId.value(), parentId == null ? null : parentId.value()))
                 .onItem().transform(rows -> rowSetMapper.toList(
                         rows,
                         rowMapper::toAdministrativeDivision
-                ));
+                )), "findByParentDivisionId");
     }
 
     @Override
@@ -173,12 +196,18 @@ public class PostgreSqlAdministrativeDivisionRepository implements Administrativ
             final DivisionTypeId typeId,
             final GeographicRecordStatus status
     ) {
-        return pool.preparedQuery(FIND_BY_TYPE_AND_STATUS)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative divisions by type and status: countryId=%s, typeId=%s, status=%s",
+                countryId.value(),
+                typeId.value(),
+                status));
+        return logFailure(pool.preparedQuery(FIND_BY_TYPE_AND_STATUS)
                 .execute(Tuple.of(countryId.value(), typeId.value(), status.name()))
                 .onItem().transform(rows -> rowSetMapper.toList(
                         rows,
                         rowMapper::toAdministrativeDivision
-                ));
+                )), "findByTypeAndStatus");
     }
 
     @Override
@@ -186,9 +215,15 @@ public class PostgreSqlAdministrativeDivisionRepository implements Administrativ
             final CountryId countryId,
             final DivisionId divisionId
     ) {
-        return pool.preparedQuery(FIND_IDENTIFIERS_BY_DIVISION)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative division identifiers: countryId=%s, divisionId=%s",
+                countryId.value(),
+                divisionId.value()));
+        return logFailure(pool.preparedQuery(FIND_IDENTIFIERS_BY_DIVISION)
                 .execute(Tuple.of(countryId.value(), divisionId.value()))
-                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toIdentifier));
+                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toIdentifier)),
+                "findIdentifiersByDivisionId");
     }
 
     @Override
@@ -196,8 +231,20 @@ public class PostgreSqlAdministrativeDivisionRepository implements Administrativ
             final CountryId countryId,
             final DivisionId divisionId
     ) {
-        return pool.preparedQuery(FIND_NAMES_BY_DIVISION)
+        log.info(LogUtil.log(
+                REPOSITORY,
+                "Start finding administrative division names: countryId=%s, divisionId=%s",
+                countryId.value(),
+                divisionId.value()));
+        return logFailure(pool.preparedQuery(FIND_NAMES_BY_DIVISION)
                 .execute(Tuple.of(countryId.value(), divisionId.value()))
-                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toName));
+                .onItem().transform(rows -> rowSetMapper.toList(rows, rowMapper::toName)),
+                "findNamesByDivisionId");
+    }
+
+    private <T> Uni<T> logFailure(final Uni<T> operation, final String operationName) {
+        return operation.onFailure().invoke(failure -> log.error(
+                LogUtil.log(REPOSITORY, "Error executing repository operation: operation=%s", operationName),
+                failure));
     }
 }

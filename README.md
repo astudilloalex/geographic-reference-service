@@ -14,6 +14,16 @@ You can run your application in dev mode that enables live coding using:
 
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 
+## Request tracing headers
+
+Every `/api` request uses the following headers:
+
+- `process-id`: Optional canonical UUID. The service generates one when it is absent and returns the effective value in the response.
+- `user-id`: Required non-blank user identifier with a maximum length of 128 characters.
+- `company-id`: Optional canonical company UUID.
+
+The `/q` management endpoints do not require these headers. Request bodies, response bodies, authorization headers, and cookies are not written to application logs.
+
 ## Packaging and running the application
 
 The application can be packaged using:
