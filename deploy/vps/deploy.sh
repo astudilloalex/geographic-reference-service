@@ -12,6 +12,7 @@ readonly QUADLET_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.container"
 readonly ENVIRONMENT_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.env"
 readonly REGISTRY_AUTH_FILE="${CONFIG_HOME}/containers/auth.json"
 readonly HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8081/q/openapi}"
+readonly -a REQUIRED_NETWORKS=("internal-services" "geographic-db")
 
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
@@ -63,6 +64,17 @@ done
 
 if (( ${#missing_variables[@]} > 0 )); then
   fail "Missing production variables in ${ENVIRONMENT_FILE}: ${missing_variables[*]}"
+fi
+
+missing_networks=()
+for network_name in "${REQUIRED_NETWORKS[@]}"; do
+  if ! podman network exists "${network_name}"; then
+    missing_networks+=("${network_name}")
+  fi
+done
+
+if (( ${#missing_networks[@]} > 0 )); then
+  fail "Required Podman networks are missing for user $(id -un): ${missing_networks[*]}. Install and start them from the VPS infrastructure configuration"
 fi
 
 pull_options=()
