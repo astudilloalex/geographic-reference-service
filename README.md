@@ -4,6 +4,12 @@ This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
 If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
 
+## Production deployment
+
+The native-image deployment to a VPS using GitHub Actions, GHCR, rootless
+Podman, and Quadlet is documented in
+[`docs/deployment/vps-podman-quadlet.md`](docs/deployment/vps-podman-quadlet.md).
+
 ## Running the application in dev mode
 
 You can run your application in dev mode that enables live coding using:
@@ -86,13 +92,13 @@ The application, packaged as an _über-jar_, is now runnable using `java -jar bu
 You can create a native executable using:
 
 ```shell script
-./gradlew build -Dquarkus.native.enabled=true
+./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
 ```
 
 Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
 
 ```shell script
-./gradlew build -Dquarkus.native.enabled=true -Dquarkus.native.container-build=true
+./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true
 ```
 
 You can then execute your native executable with: `./build/geographic-reference-service-1.0.0-SNAPSHOT-runner`
