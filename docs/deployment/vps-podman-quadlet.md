@@ -1,37 +1,37 @@
-# Despliegue nativo en un VPS con GitHub Actions y Podman Quadlet
+# Native VPS Deployment with GitHub Actions and Podman Quadlet
 
-El workflow [`.github/workflows/deploy-native-vps.yml`](../../.github/workflows/deploy-native-vps.yml)
-compila Quarkus como ejecutable nativo Linux `amd64`, construye una imagen,
-la publica en GHCR y despliega por SSH el tag inmutable
-`sha-<commit>`. El script remoto descarga primero la imagen, reinicia el
-Quadlet rootless, comprueba `/q/openapi` y vuelve a la versión anterior si la
-comprobación falla.
+The [`.github/workflows/deploy-native-vps.yml`](../../.github/workflows/deploy-native-vps.yml)
+workflow compiles Quarkus as a native Linux `amd64` executable, builds a
+container image, publishes it to GHCR, and deploys the immutable
+`sha-<commit>` tag over SSH. The remote script pulls the image first, restarts
+the rootless Quadlet service, checks `/q/openapi`, and restores the previous
+version if the health check fails.
 
-La imagen `latest` también se publica, pero el despliegue no depende de ese tag
-mutable.
+The `latest` image is also published, but deployments do not depend on that
+mutable tag.
 
-## 1. Requisitos del VPS
+## 1. VPS Requirements
 
-- Linux `x86_64` con systemd.
-- Podman 5 o posterior con Quadlet.
-- `curl`, `grep`, `sed` y las utilidades básicas de GNU.
-- Un usuario de despliegue sin `sudo`; en los ejemplos se llama `deploy`.
-- PostgreSQL accesible desde el contenedor.
+- An `x86_64` Linux server running systemd.
+- Podman 5 or later with Quadlet.
+- `curl`, `grep`, `sed`, and the standard GNU utilities.
+- A deployment user without `sudo`; the examples use `deploy`.
+- PostgreSQL reachable from the container.
 
-El ejecutable nativo se genera para `linux/amd64`. Para un VPS ARM64 se necesita
-un runner de GitHub ARM64 y se debe cambiar también `--platform` en el workflow.
-No basta con emular solamente la última construcción de la imagen.
-El workflow usa `quarkus.native.march=compatibility` para no exigir las
-extensiones `x86-64-v3` de la CPU del runner hospedado.
+The native executable targets `linux/amd64`. An ARM64 VPS requires an ARM64
+GitHub runner, and the workflow's `--platform` value must also be changed.
+Emulating only the final container-image build is not sufficient. The workflow
+uses `quarkus.native.march=compatibility` so the resulting executable does not
+require the hosted runner CPU's `x86-64-v3` extensions.
 
-Como administrador del VPS, habilita el servicio systemd de usuario incluso
-cuando `deploy` no tenga una sesión abierta:
+As the VPS administrator, allow the user's systemd services to run even when
+`deploy` does not have an active login session:
 
 ```bash
 sudo loginctl enable-linger deploy
 ```
 
-Después entra directamente como ese usuario y prepara la configuración:
+Then log in directly as that user and prepare the configuration:
 
 ```bash
 install -d -m 700 ~/.config/containers/systemd
@@ -39,30 +39,30 @@ install -m 600 /dev/null \
   ~/.config/containers/systemd/geographic-reference-service.env
 ```
 
-El archivo debe tener este formato:
+The file must use the following format:
 
 ```dotenv
 DB_USERNAME=geographic_reference_service
-DB_PASSWORD=una-clave-larga
+DB_PASSWORD=a-long-password
 DB_REACTIVE_URL=postgresql://database-host:5432/geographic_reference_service
 DB_JDBC_URL=jdbc:postgresql://database-host:5432/geographic_reference_service
 ```
 
-No guardes este archivo ni la contraseña de PostgreSQL en GitHub. El ejemplo
-versionado está en
+Do not store this file or the PostgreSQL password in GitHub. The versioned
+example is available at
 [`deploy/quadlet/geographic-reference-service.env.example`](../../deploy/quadlet/geographic-reference-service.env.example).
 
-Si PostgreSQL está instalado directamente en el mismo VPS, `127.0.0.1` dentro
-del contenedor no apunta al host. Usa `host.containers.internal` si la
-configuración de Podman de tu distribución lo proporciona, o conecta ambos
-contenedores a una red Podman y usa el nombre DNS del contenedor de PostgreSQL.
-No publiques PostgreSQL en la IPv4 pública.
+If PostgreSQL is installed directly on the same VPS, `127.0.0.1` inside the
+container does not refer to the host. Use `host.containers.internal` if it is
+provided by your distribution's Podman configuration, or connect both
+containers to a Podman network and use the PostgreSQL container's DNS name.
+Do not expose PostgreSQL on the public IPv4 address.
 
-## 2. Acceso de sólo lectura a GHCR desde el VPS
+## 2. Read-Only GHCR Access from the VPS
 
-Los paquetes GHCR son privados inicialmente en muchos repositorios. Crea un
-personal access token clásico con solamente `read:packages` y autentica Podman
-una vez como `deploy`:
+GHCR packages are initially private in many repositories. Create a classic
+personal access token with only the `read:packages` scope and authenticate
+Podman once as `deploy`:
 
 ```bash
 install -d -m 700 ~/.config/containers
@@ -70,21 +70,21 @@ read -rsp "GHCR token: " GHCR_READ_TOKEN
 printf '%s' "${GHCR_READ_TOKEN}" |
   podman login \
     --authfile ~/.config/containers/auth.json \
-    --username TU_USUARIO_GITHUB \
+    --username YOUR_GITHUB_USERNAME \
     --password-stdin \
     ghcr.io
 unset GHCR_READ_TOKEN
 chmod 600 ~/.config/containers/auth.json
 ```
 
-Es importante indicar `--authfile`: el archivo predeterminado de Podman en
-Linux vive bajo `/run` y no sobrevive a un reinicio. Si haces pública la imagen
-GHCR, este login no es necesario.
+The `--authfile` argument is important: Podman's default Linux authentication
+file is stored under `/run` and does not survive a reboot. This login is not
+required if the GHCR image is public.
 
-## 3. Clave SSH dedicada
+## 3. Dedicated SSH Key
 
-Genera una clave Ed25519 específica para el workflow y añade únicamente la
-clave pública a `~deploy/.ssh/authorized_keys`:
+Generate an Ed25519 key exclusively for the workflow and add only its public
+key to `~deploy/.ssh/authorized_keys`:
 
 ```bash
 ssh-keygen -t ed25519 \
@@ -92,86 +92,86 @@ ssh-keygen -t ed25519 \
   -f github-actions-geographic-reference-service
 ```
 
-El usuario SSH no necesita `sudo`, pertenecer al grupo de Docker ni ejecutar
-Podman como root. Puedes anteponer `restrict` a la línea de esta clave en
-`authorized_keys` para desactivar forwarding, X11 y PTY sin impedir los
-comandos de despliegue.
+The SSH user does not need `sudo`, Docker group membership, or rootful Podman.
+You can prefix this key's line in `authorized_keys` with `restrict` to disable
+forwarding, X11, and PTY access without preventing deployment commands.
 
-Obtén la línea de `known_hosts` y verifica su huella contra la clave del servidor
-desde la consola de tu proveedor antes de confiar en ella:
+Obtain the `known_hosts` line and verify its fingerprint against the server's
+key from your provider's console before trusting it:
 
 ```bash
-ssh-keyscan -p 22 TU_IPV4
+ssh-keyscan -p 22 YOUR_VPS_IPV4
 sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-No uses `ssh-keyscan` dentro del workflow sin verificar la huella: eso elimina
-la protección frente a un servidor impostor.
+Do not run an unverified `ssh-keyscan` inside the workflow. Doing so removes
+the protection against connecting to an impersonated server.
 
-## 4. Environment y secretos de GitHub
+## 4. GitHub Environment and Secrets
 
-En `Settings → Environments`, crea el environment `production`. Restringe el
-despliegue a `main` y, si tu plan lo permite, exige aprobación manual.
+Create an environment named `production` under `Settings → Environments`.
+Restrict deployments to `main` and, if supported by your plan, require manual
+approval.
 
-Configura estos secrets dentro de `production`:
+Configure these secrets inside `production`:
 
-| Nombre | Contenido |
+| Name | Value |
 | --- | --- |
-| `VPS_HOST` | IPv4 pública del VPS |
-| `VPS_USER` | Usuario rootless, por ejemplo `deploy` |
-| `VPS_SSH_PRIVATE_KEY` | Contenido completo de la clave privada dedicada |
-| `VPS_SSH_KNOWN_HOSTS` | Línea verificada de `known_hosts` |
+| `VPS_HOST` | The VPS public IPv4 address |
+| `VPS_USER` | The rootless user, for example `deploy` |
+| `VPS_SSH_PRIVATE_KEY` | The complete dedicated private key |
+| `VPS_SSH_KNOWN_HOSTS` | The verified `known_hosts` line |
 
-Configura opcionalmente la variable `VPS_SSH_PORT`. Si no existe, se usa `22`.
-`GITHUB_TOKEN` publica la imagen en GHCR y GitHub lo genera automáticamente; no
-hay que crear otro secreto de escritura.
+Optionally configure the `VPS_SSH_PORT` variable. Port `22` is used when the
+variable is absent. GitHub automatically creates the `GITHUB_TOKEN` used to
+publish the image to GHCR, so no additional write token is required.
 
-El primer `push` a `main`, o la ejecución manual del workflow desde `main`,
-realizará el despliegue.
+The first push to `main`, or a manual workflow run from `main`, will perform the
+deployment.
 
 ## 5. Firewall
 
-El Quadlet publica Quarkus como `127.0.0.1:8080`, de modo que el puerto 8080 no
-queda expuesto en la IPv4 pública. Coloca Caddy, Nginx o HAProxy delante y
-termina TLS allí.
+The Quadlet publishes Quarkus on `127.0.0.1:8080`, so port 8080 is not exposed
+on the public IPv4 address. Place Caddy, Nginx, or HAProxy in front of the
+service and terminate TLS there.
 
-Reglas de entrada recomendadas:
+Recommended inbound rules:
 
-| Puerto | Origen | Motivo |
+| Port | Source | Purpose |
 | --- | --- | --- |
-| TCP 22, o tu puerto SSH | GitHub runner o Internet si usas runners hospedados estándar | Despliegue SSH |
-| TCP 80 | Internet | Redirección HTTP a HTTPS y/o ACME |
-| TCP 443 | Internet | API HTTPS mediante reverse proxy |
-| TCP 8080 | Ninguno | Está enlazado solamente a loopback |
-| TCP 5432 | Ninguno desde Internet | PostgreSQL no debe ser público |
+| TCP 22, or your SSH port | GitHub runner or the Internet when using standard hosted runners | SSH deployment |
+| TCP 80 | Internet | HTTP-to-HTTPS redirection and/or ACME |
+| TCP 443 | Internet | HTTPS API through the reverse proxy |
+| TCP 8080 | None | Bound only to loopback |
+| TCP 5432 | None from the Internet | PostgreSQL must not be public |
 
-Si la base de datos vive en otro servidor, permite 5432 en **ese servidor**
-solamente desde la IP del VPS o a través de una red privada/VPN.
+If the database runs on another server, allow port 5432 on **that server** only
+from the VPS address or through a private network/VPN.
 
-Para salida, el VPS necesita DNS y HTTPS (TCP 443) para descargar desde GHCR y
-los endpoints de contenido de GitHub, además del puerto de la base de datos
-cuando ésta sea remota. Con una política normal de salida permitida no hace
-falta añadir reglas especiales.
+For outbound traffic, the VPS needs DNS and HTTPS (TCP 443) to pull from GHCR
+and GitHub content endpoints. It also needs access to the database port when
+the database is remote. A normal allow-outbound policy does not require
+additional rules.
 
-Los runners estándar de GitHub no tienen una única IP fija. GitHub publica
-muchos rangos y los actualiza semanalmente, por lo que no recomienda usarlos
-como allowlist del firewall. Hay tres alternativas:
+Standard GitHub-hosted runners do not have a single static address. GitHub
+publishes many address ranges and updates them weekly, so it does not recommend
+using those ranges as a firewall allowlist. Available alternatives are:
 
-1. Mantener SSH público, sólo con clave, `PasswordAuthentication no`,
-   `PermitRootLogin no`, usuario sin sudo y protección contra intentos.
-2. Usar un runner self-hosted dedicado en el VPS. Éste inicia conexiones
-   salientes por TCP 443 y elimina la necesidad de abrir SSH para GitHub.
-3. Conectar el runner hospedado y el VPS mediante una VPN de corta duración.
+1. Keep SSH public with key-only authentication, `PasswordAuthentication no`,
+   `PermitRootLogin no`, a user without `sudo`, and brute-force protection.
+2. Use a dedicated self-hosted runner on the VPS. It initiates outbound
+   connections over TCP 443 and removes the need to expose SSH to GitHub.
+3. Connect the hosted runner and VPS through a short-lived VPN connection.
 
-Para un VPS pequeño, un runner self-hosted dedicado sólo al job de despliegue es
-la opción con menor exposición de red; mantén la compilación nativa en el runner
-hospedado. No asignes ese runner a workflows de `pull_request`, especialmente en
-un repositorio público, porque el código del workflow se ejecuta con acceso al
-servidor.
+For a small VPS, a self-hosted runner dedicated only to the deployment job
+provides the lowest network exposure. Keep the native build on a GitHub-hosted
+runner. Do not assign the VPS runner to `pull_request` workflows, especially
+for a public repository, because workflow code would execute with access to the
+server.
 
-## 6. Operación y diagnóstico
+## 6. Operations and Troubleshooting
 
-Ejecuta estos comandos como el usuario `deploy`:
+Run these commands as the `deploy` user:
 
 ```bash
 systemctl --user status geographic-reference-service.service
@@ -180,11 +180,11 @@ podman ps
 curl --fail http://127.0.0.1:8080/q/openapi
 ```
 
-El Quadlet final se instala en:
+The final Quadlet is installed at:
 
 ```text
 ~/.config/containers/systemd/geographic-reference-service.container
 ```
 
-El script no elimina imágenes antiguas: se conservan para que el rollback pueda
-reiniciar la referencia anterior.
+The deployment script does not delete old images. They are retained so a
+rollback can restart the previous image reference.
