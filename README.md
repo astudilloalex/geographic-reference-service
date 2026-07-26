@@ -1,30 +1,18 @@
 # geographic-reference-service
 
-Geographic Reference Service is the runtime read-only system of record for global
-geographic reference data. It exposes only safe query operations through `GET`, `HEAD`,
-and protocol-required `OPTIONS`; it does not provide administrative, import,
-publication, lifecycle-command, generic CRUD, or mutation endpoints.
-
-Schema and catalog data are maintained exclusively through reviewed, immutable Flyway
-SQL migrations. Flyway runs outside the application with a dedicated migration identity.
-The long-running application uses a separate PostgreSQL identity limited to approved
-read privileges and MUST NOT receive migration credentials or configure runtime JDBC.
-
-All repository work is governed by the
-[project constitution](.specify/memory/constitution.md), including its geographic
-bounded context, Java 25 reactive stack, Clean Architecture for queries, contract-first
-read-only API, PostgreSQL 18 integrity, SQL catalog governance, test-first verification,
-and JVM/Podman Quadlet deployment rules.
-
 This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
 If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
 
+## Production deployment
+
+The native-image deployment to a VPS using GitHub Actions, GHCR, rootless
+Podman, and Quadlet is documented in
+[`docs/deployment/vps-podman-quadlet.md`](docs/deployment/vps-podman-quadlet.md).
+
 ## Running the application in dev mode
 
-Before starting the application, apply required Flyway migrations through the controlled
-external migration process with the migration identity. Then run dev mode with the
-read-only runtime database identity:
+You can run your application in dev mode that enables live coding using:
 
 ```shell script
 ./gradlew quarkusDev
@@ -32,9 +20,51 @@ read-only runtime database identity:
 
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 
-Application startup MUST NOT execute Flyway with the runtime identity. Local and CI
-configuration MUST preserve the same separation of migration and runtime credentials
-used in deployment.
+## Request tracing headers
+
+Every `/api` request uses the following headers:
+
+- `process-id`: Optional canonical UUID. The service generates one when it is absent and returns the effective value in the response.
+- `user-id`: Required non-blank user identifier with a maximum length of 128 characters.
+- `company-id`: Optional canonical company UUID.
+
+The `/q` management endpoints do not require these headers. Request bodies, response bodies, authorization headers, and cookies are not written to application logs.
+
+## Localized country-name lookup
+
+Use `GET /api/v1/countries/names` to obtain country names for a selected ISO
+3166-1 code type, geographic name type, and BCP 47 language tag.
+
+Required query parameters:
+
+- `codeType`: `ALPHA2`, `ALPHA3`, or `NUMERIC`.
+- `nameType`: `OFFICIAL`, `COMMON`, `SHORT`, `ALTERNATIVE`, or `HISTORICAL`.
+- `languageTag`: a BCP 47 language tag such as `es`, `en`, or `es-EC`.
+
+For example:
+
+```http
+GET /api/v1/countries/names?codeType=ALPHA2&nameType=COMMON&languageTag=es
+process-id: 61c55f47-e889-4a34-b61d-07bb060ab496
+user-id: api-client
+```
+
+```json
+{
+  "status": 200,
+  "code": "successful",
+  "data": [
+    {
+      "codeType": "ALPHA2",
+      "code": "EC",
+      "languageTag": "es",
+      "nameType": "COMMON",
+      "name": "Ecuador",
+      "preferred": true
+    }
+  ]
+}
+```
 
 ## Packaging and running the application
 
@@ -57,26 +87,20 @@ If you want to build an _über-jar_, execute the following command:
 
 The application, packaged as an _über-jar_, is now runnable using `java -jar build/*-runner.jar`.
 
-## Native executable policy
+## Creating a native executable
 
-The approved production baseline is the Java 25 JVM. Native compilation is not part of
-the initial runtime and MUST NOT be adopted unless a constitutional amendment and
-approved ADR document the required benchmarks, compatibility validation, native
-integration tests, and operational acceptance.
-
-After that approval, a native executable can be evaluated using:
+You can create a native executable using:
 
 ```shell script
-./gradlew build -Dquarkus.native.enabled=true
+./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
 ```
 
 Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
 
 ```shell script
-./gradlew build -Dquarkus.native.enabled=true -Dquarkus.native.container-build=true
+./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true
 ```
 
 You can then execute your native executable with: `./build/geographic-reference-service-1.0.0-SNAPSHOT-runner`
 
-This command is evaluation guidance only; it does not authorize a native production
-deployment.
+If you want to learn more about building native executables, please consult <https://quarkus.io/guides/gradle-tooling>.

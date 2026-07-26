@@ -1,0 +1,322 @@
+Project GeographicReferenceServiceV1 {
+  database_type: 'PostgreSQL'
+
+  Note: '''
+    Geographic Reference Service V1 - bounded context for global geographic
+    reference data.
+
+    It is the system of record for countries and their political-administrative
+    divisions, including stable codes, hierarchical relationships, localized
+    names, validity periods and source provenance.
+
+    It does not own addresses, contacts, postal delivery, coordinates of customer
+    addresses, tax jurisdictions, commercial territories, service coverage,
+    branches, warehouses, tenants, subscriptions, users, or organization-specific
+    geographic configuration.
+
+    The data is global and shared by all tenants; therefore, these tables do not
+    contain tenant_id.
+
+    Other microservices keep country and administrative-division codes as logical
+    references and do not create foreign keys to this database.
+
+    Country codes follow ISO 3166-1. Administrative divisions may expose multiple
+    identifier schemes, such as ISO 3166-2 or national statistical codes.
+
+    Every mutable table contains created_at, created_by, updated_at, updated_by
+    and version for traceability and optimistic concurrency.
+  '''
+}
+
+// Enums
+
+Enum geographic_record_status {
+  DRAFT
+  ACTIVE
+  DEPRECATED
+  RETIRED
+}
+
+Enum geographic_name_type {
+  OFFICIAL
+  COMMON
+  SHORT
+  ALTERNATIVE
+  HISTORICAL
+}
+
+Enum geographic_identifier_status {
+  ACTIVE
+  DEPRECATED
+  RETIRED
+}
+
+// Tables
+
+Table countries {
+  id UUID [pk, not null, default: `uuidv7()`]
+
+  alpha2_code CHAR(2) [not null, unique, note: 'ISO 3166-1 alpha-2 code, for example EC.']
+  alpha3_code CHAR(3) [not null, unique, note: 'ISO 3166-1 alpha-3 code, for example ECU.']
+  numeric_code CHAR(3) [not null, unique, note: 'ISO 3166-1 numeric code, stored as text to preserve leading zeroes.']
+
+  default_name VARCHAR(150) [not null, note: 'Default presentation name used when no localized name is requested.']
+  official_name VARCHAR(250) [not null]
+  is_independent BOOLEAN [not null, default: true]
+
+  status geographic_record_status [not null, default: 'DRAFT']
+  valid_from DATE
+  valid_until DATE
+
+  source_authority VARCHAR(128) [not null, note: 'Authority or dataset that supplied the record, for example ISO.']
+  source_reference VARCHAR(300)
+  source_revision VARCHAR(64)
+
+  created_at TIMESTAMPTZ [not null, default: `now()`]
+  created_by VARCHAR(128) [not null, note: 'Opaque authenticated subject or service principal.']
+  updated_at TIMESTAMPTZ [not null, default: `now()`]
+  updated_by VARCHAR(128) [not null, note: 'Opaque authenticated subject or service principal.']
+  version BIGINT [not null, default: 0]
+
+  indexes {
+    (status, alpha2_code) [name: 'ix_countries_status_alpha2']
+    default_name [name: 'ix_countries_default_name']
+  }
+
+  checks {
+    `alpha2_code ~ '^[A-Z]{2}$'` [name: 'ck_countries_alpha2']
+    `alpha3_code ~ '^[A-Z]{3}$'` [name: 'ck_countries_alpha3']
+    `numeric_code ~ '^[0-9]{3}$'` [name: 'ck_countries_numeric']
+    `valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from` [name: 'ck_countries_validity']
+    `version >= 0` [name: 'ck_countries_nonnegative_version']
+  }
+
+  Note: '''
+    Global catalog of countries and ISO-recognized territories.
+
+    ISO codes are stable integration identifiers. Internal consumers should
+    normally persist alpha2_code as the logical country reference.
+  '''
+}
+
+Table country_names {
+  id UUID [pk, not null, default: `uuidv7()`]
+  country_id UUID [not null]
+
+  language_tag VARCHAR(35) [not null, note: 'BCP 47 language tag, for example es, en or es-EC.']
+  name_type geographic_name_type [not null]
+  name VARCHAR(250) [not null]
+  is_preferred BOOLEAN [not null, default: false]
+
+  valid_from DATE
+  valid_until DATE
+
+  created_at TIMESTAMPTZ [not null, default: `now()`]
+  created_by VARCHAR(128) [not null]
+  updated_at TIMESTAMPTZ [not null, default: `now()`]
+  updated_by VARCHAR(128) [not null]
+  version BIGINT [not null, default: 0]
+
+  indexes {
+    (country_id, language_tag, name_type, name) [unique, name: 'uq_country_names_identity']
+    (country_id, language_tag, is_preferred) [name: 'ix_country_names_preferred']
+    name [name: 'ix_country_names_name']
+  }
+
+  checks {
+    `valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from` [name: 'ck_country_names_validity']
+    `version >= 0` [name: 'ck_country_names_nonnegative_version']
+  }
+
+  Note: '''
+    Localized, alternative and historical country names.
+
+    Flyway must create a partial unique index allowing at most one active preferred
+    name per country and language_tag.
+  '''
+}
+
+Table administrative_division_types {
+  id UUID [pk, not null, default: `uuidv7()`]
+  country_id UUID [not null]
+
+  code VARCHAR(64) [not null, note: 'Stable country-scoped code, for example PROVINCE, CANTON or PARISH.']
+  name VARCHAR(150) [not null]
+  hierarchy_level SMALLINT [not null, note: 'One-based administrative level; lower values are higher in the hierarchy.']
+
+  status geographic_record_status [not null, default: 'DRAFT']
+
+  created_at TIMESTAMPTZ [not null, default: `now()`]
+  created_by VARCHAR(128) [not null]
+  updated_at TIMESTAMPTZ [not null, default: `now()`]
+  updated_by VARCHAR(128) [not null]
+  version BIGINT [not null, default: 0]
+
+  indexes {
+    (country_id, id) [unique, name: 'uq_administrative_division_types_country_id']
+    (country_id, code) [unique, name: 'uq_administrative_division_types_code']
+    (country_id, hierarchy_level) [unique, name: 'uq_administrative_division_types_level']
+    (country_id, status) [name: 'ix_administrative_division_types_status']
+  }
+
+  checks {
+    `hierarchy_level > 0` [name: 'ck_administrative_division_types_level']
+    `version >= 0` [name: 'ck_administrative_division_types_nonnegative_version']
+  }
+
+  Note: '''
+    Country-specific administrative level definitions.
+
+    Example for Ecuador:
+    hierarchy_level 1 = PROVINCE
+    hierarchy_level 2 = CANTON
+    hierarchy_level 3 = PARISH
+  '''
+}
+
+Table administrative_divisions {
+  id UUID [pk, not null, default: `uuidv7()`]
+  country_id UUID [not null]
+  division_type_id UUID [not null]
+  parent_division_id UUID
+
+  canonical_code VARCHAR(64) [not null, note: 'Stable code exposed by this service and unique within the country.']
+  default_name VARCHAR(200) [not null]
+  official_name VARCHAR(300)
+
+  status geographic_record_status [not null, default: 'DRAFT']
+  valid_from DATE
+  valid_until DATE
+
+  source_authority VARCHAR(128) [not null]
+  source_reference VARCHAR(300)
+  source_revision VARCHAR(64)
+
+  created_at TIMESTAMPTZ [not null, default: `now()`]
+  created_by VARCHAR(128) [not null]
+  updated_at TIMESTAMPTZ [not null, default: `now()`]
+  updated_by VARCHAR(128) [not null]
+  version BIGINT [not null, default: 0]
+
+  indexes {
+    (country_id, id) [unique, name: 'uq_administrative_divisions_country_id']
+    (country_id, canonical_code) [unique, name: 'uq_administrative_divisions_canonical_code']
+    (country_id, division_type_id, status) [name: 'ix_administrative_divisions_type_status']
+    (country_id, parent_division_id, status) [name: 'ix_administrative_divisions_parent_status']
+    (country_id, default_name) [name: 'ix_administrative_divisions_default_name']
+  }
+
+  checks {
+    `parent_division_id IS NULL OR parent_division_id <> id` [name: 'ck_administrative_divisions_no_self_parent']
+    `valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from` [name: 'ck_administrative_divisions_validity']
+    `version >= 0` [name: 'ck_administrative_divisions_nonnegative_version']
+  }
+
+  Note: '''
+    Hierarchical political-administrative division within a country.
+
+    Flyway must implement a deferred constraint trigger that validates:
+    - The parent belongs to the same country.
+    - The parent hierarchy level is immediately above the child level.
+    - Cycles are prohibited.
+    - Root divisions have the first configured hierarchy level.
+  '''
+}
+
+Table administrative_division_identifiers {
+  id UUID [pk, not null, default: `uuidv7()`]
+  country_id UUID [not null]
+  division_id UUID [not null]
+
+  scheme_code VARCHAR(64) [not null, note: 'Identifier scheme, for example ISO_3166_2 or EC_INEC_DPA.']
+  identifier_value VARCHAR(128) [not null]
+  is_primary BOOLEAN [not null, default: false]
+  status geographic_identifier_status [not null, default: 'ACTIVE']
+
+  valid_from DATE
+  valid_until DATE
+
+  source_authority VARCHAR(128) [not null]
+  source_reference VARCHAR(300)
+
+  created_at TIMESTAMPTZ [not null, default: `now()`]
+  created_by VARCHAR(128) [not null]
+  updated_at TIMESTAMPTZ [not null, default: `now()`]
+  updated_by VARCHAR(128) [not null]
+  version BIGINT [not null, default: 0]
+
+  indexes {
+    (country_id, scheme_code, identifier_value) [unique, name: 'uq_administrative_division_identifier']
+    (country_id, division_id, scheme_code, status) [name: 'ix_administrative_division_identifiers_division']
+    (country_id, division_id, is_primary) [name: 'ix_administrative_division_identifiers_primary']
+  }
+
+  checks {
+    `valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from` [name: 'ck_administrative_division_identifiers_validity']
+    `version >= 0` [name: 'ck_administrative_division_identifiers_nonnegative_version']
+  }
+
+  Note: '''
+    External identifiers assigned to an administrative division.
+
+    A division may simultaneously have an ISO identifier and one or more national
+    statistical or governmental identifiers.
+
+    Flyway must create a partial unique index allowing at most one active primary
+    identifier per division and scheme_code.
+  '''
+}
+
+Table administrative_division_names {
+  id UUID [pk, not null, default: `uuidv7()`]
+  country_id UUID [not null]
+  division_id UUID [not null]
+
+  language_tag VARCHAR(35) [not null, note: 'BCP 47 language tag.']
+  name_type geographic_name_type [not null]
+  name VARCHAR(300) [not null]
+  is_preferred BOOLEAN [not null, default: false]
+
+  valid_from DATE
+  valid_until DATE
+
+  created_at TIMESTAMPTZ [not null, default: `now()`]
+  created_by VARCHAR(128) [not null]
+  updated_at TIMESTAMPTZ [not null, default: `now()`]
+  updated_by VARCHAR(128) [not null]
+  version BIGINT [not null, default: 0]
+
+  indexes {
+    (country_id, division_id, language_tag, name_type, name) [unique, name: 'uq_administrative_division_names_identity']
+    (country_id, division_id, language_tag, is_preferred) [name: 'ix_administrative_division_names_preferred']
+    (country_id, name) [name: 'ix_administrative_division_names_name']
+  }
+
+  checks {
+    `valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from` [name: 'ck_administrative_division_names_validity']
+    `version >= 0` [name: 'ck_administrative_division_names_nonnegative_version']
+  }
+
+  Note: '''
+    Localized, alternative and historical names of an administrative division.
+
+    Flyway must create a partial unique index allowing at most one active preferred
+    name per division and language_tag.
+  '''
+}
+
+// References
+
+Ref: country_names.country_id > countries.id [delete: restrict]
+
+Ref: administrative_division_types.country_id > countries.id [delete: restrict]
+
+Ref: administrative_divisions.country_id > countries.id [delete: restrict]
+
+Ref: administrative_divisions.(country_id, division_type_id) > administrative_division_types.(country_id, id) [delete: restrict]
+
+Ref: administrative_divisions.(country_id, parent_division_id) > administrative_divisions.(country_id, id) [delete: restrict]
+
+Ref: administrative_division_identifiers.(country_id, division_id) > administrative_divisions.(country_id, id) [delete: restrict]
+
+Ref: administrative_division_names.(country_id, division_id) > administrative_divisions.(country_id, id) [delete: restrict]

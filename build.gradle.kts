@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     id("io.quarkus")
 }
 
@@ -11,11 +12,26 @@ repositories {
 val quarkusPlatformGroupId: String by project
 val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
+val lombokVersion = "1.18.46"
 
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     implementation("io.quarkus:quarkus-arc")
+    implementation("io.quarkus:quarkus-flyway")
+    implementation("io.quarkus:quarkus-jdbc-postgresql")
+    implementation("io.quarkus:quarkus-reactive-pg-client")
+    implementation("io.quarkus:quarkus-rest-jackson")
+    implementation("io.quarkus:quarkus-smallrye-openapi")
+    implementation("io.smallrye.reactive:mutiny")
+    implementation("org.jboss.slf4j:slf4j-jboss-logmanager")
+    implementation("org.flywaydb:flyway-database-postgresql")
+    compileOnly("org.projectlombok:lombok:${lombokVersion}")
+    annotationProcessor("org.projectlombok:lombok:${lombokVersion}")
     testImplementation("io.quarkus:quarkus-junit")
+    testImplementation("io.rest-assured:rest-assured")
+    testImplementation("com.tngtech.archunit:archunit:1.4.2")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+    testImplementation("org.assertj:assertj-core:3.25.3")
 }
 
 group = "com.alexastudillo"
@@ -29,4 +45,33 @@ java {
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = "BUNDLE"
+            limit {
+                counter = "INSTRUCTION"
+                value = "COVEREDRATIO"
+                minimum = "0.99".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }

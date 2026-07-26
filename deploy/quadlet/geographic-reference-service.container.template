@@ -1,0 +1,25 @@
+[Unit]
+Description=Geographic Reference Service
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=@@IMAGE@@
+ContainerName=geographic-reference-service
+Environment=QUARKUS_PROFILE=prod
+EnvironmentFile=geographic-reference-service.env
+PublishPort=127.0.0.1:8080:8080/tcp
+Pull=never
+NoNewPrivileges=true
+DropCapability=all
+ReadOnly=true
+LogDriver=journald
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=300
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
