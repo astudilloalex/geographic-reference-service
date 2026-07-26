@@ -2,9 +2,9 @@ package com.alexastudillo.geographicreference.application.port.input;
 
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -12,17 +12,17 @@ import java.util.UUID;
  */
 public interface GetCountryQueryPort {
 
-    Optional<CountryResponse> findById(UUID id);
+    Uni<CountryResponse> findById(UUID id);
 
-    Optional<CountryResponse> findByAlpha2Code(String alpha2Code);
+    Uni<CountryResponse> findByAlpha2Code(String alpha2Code);
 
-    Optional<CountryResponse> findByAlpha3Code(String alpha3Code);
+    Uni<CountryResponse> findByAlpha3Code(String alpha3Code);
 
-    Optional<CountryResponse> findByNumericCode(String numericCode);
+    Uni<CountryResponse> findByNumericCode(String numericCode);
 
-    List<CountryResponse> listAll();
+    Multi<CountryResponse> listAll();
 
-    List<CountryResponse> listByStatus(String status);
+    Multi<CountryResponse> listByStatus(String status);
 
-    List<CountryNameResponse> findNamesByCountryId(UUID countryId);
+    Multi<CountryNameResponse> findNamesByCountryId(UUID countryId);
 }

@@ -1,4 +1,4 @@
-package com.alexastudillo.geographicreference.domain.port.output;
+package com.alexastudillo.geographicreference.application.port.output;
 
 import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeDivision;
 import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeDivisionIdentifier;
@@ -7,44 +7,44 @@ import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecord
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-
-import java.util.List;
-import java.util.Optional;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 
 /**
  * Output port for the {@link AdministrativeDivision} aggregate persistence.
  *
- * <p>Covers divisions, their external identifiers, and localized names.
+ * <p>
+ * Covers divisions, their external identifiers, and localized names.
  */
 public interface AdministrativeDivisionRepository {
 
     // ── Divisions ──────────────────────────────────────────────────────────
 
-    Optional<AdministrativeDivision> findById(DivisionId id);
+    Uni<AdministrativeDivision> findById(DivisionId id);
 
-    Optional<AdministrativeDivision> findByCanonicalCode(CountryId countryId, String canonicalCode);
+    Uni<AdministrativeDivision> findByCanonicalCode(CountryId countryId, String canonicalCode);
 
-    List<AdministrativeDivision> findByCountryId(CountryId countryId);
+    Multi<AdministrativeDivision> findByCountryId(CountryId countryId);
 
-    List<AdministrativeDivision> findByParentDivisionId(CountryId countryId, DivisionId parentId);
+    Multi<AdministrativeDivision> findByParentDivisionId(CountryId countryId, DivisionId parentId);
 
-    List<AdministrativeDivision> findByTypeAndStatus(CountryId countryId,
-                                                     DivisionTypeId typeId,
-                                                     GeographicRecordStatus status);
+    Multi<AdministrativeDivision> findByTypeAndStatus(CountryId countryId,
+            DivisionTypeId typeId,
+            GeographicRecordStatus status);
 
-    AdministrativeDivision save(AdministrativeDivision division);
+    Uni<AdministrativeDivision> save(AdministrativeDivision division);
 
     // ── Identifiers ────────────────────────────────────────────────────────
 
-    List<AdministrativeDivisionIdentifier> findIdentifiersByDivisionId(CountryId countryId,
-                                                                       DivisionId divisionId);
+    Multi<AdministrativeDivisionIdentifier> findIdentifiersByDivisionId(CountryId countryId,
+            DivisionId divisionId);
 
-    AdministrativeDivisionIdentifier saveIdentifier(AdministrativeDivisionIdentifier identifier);
+    Uni<AdministrativeDivisionIdentifier> saveIdentifier(AdministrativeDivisionIdentifier identifier);
 
     // ── Names ──────────────────────────────────────────────────────────────
 
-    List<AdministrativeDivisionName> findNamesByDivisionId(CountryId countryId,
-                                                           DivisionId divisionId);
+    Multi<AdministrativeDivisionName> findNamesByDivisionId(CountryId countryId,
+            DivisionId divisionId);
 
-    AdministrativeDivisionName saveName(AdministrativeDivisionName name);
+    Uni<AdministrativeDivisionName> saveName(AdministrativeDivisionName name);
 }

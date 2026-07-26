@@ -2,6 +2,7 @@ package com.alexastudillo.geographicreference.application.service;
 
 import com.alexastudillo.geographicreference.application.dto.CountryNameResponse;
 import com.alexastudillo.geographicreference.application.dto.CountryResponse;
+import com.alexastudillo.geographicreference.application.port.output.CountryRepository;
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicNameType;
@@ -14,7 +15,8 @@ import com.alexastudillo.geographicreference.domain.model.valobj.LanguageTag;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
 import com.alexastudillo.geographicreference.domain.model.valobj.SourceProvenance;
 import com.alexastudillo.geographicreference.domain.model.valobj.ValidityPeriod;
-import com.alexastudillo.geographicreference.domain.port.output.CountryRepository;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +24,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,58 +68,58 @@ class GetCountryQueryServiceTest {
 
     @Test
     void shouldFindById() {
-        assertThat(service.findById(null)).isEmpty();
+        assertThat(service.findById(null).await().indefinitely()).isNull();
 
-        when(countryRepository.findById(countryId)).thenReturn(Optional.of(country));
-        final Optional<CountryResponse> result = service.findById(countryId.value());
+        when(countryRepository.findById(countryId)).thenReturn(Uni.createFrom().item(country));
+        final CountryResponse result = service.findById(countryId.value()).await().indefinitely();
 
-        assertThat(result).isPresent();
-        assertThat(result.get().alpha2Code()).isEqualTo("EC");
+        assertThat(result).isNotNull();
+        assertThat(result.alpha2Code()).isEqualTo("EC");
     }
 
     @Test
     void shouldFindByAlpha2Code() {
-        assertThat(service.findByAlpha2Code(null)).isEmpty();
-        assertThat(service.findByAlpha2Code(" ")).isEmpty();
-        assertThat(service.findByAlpha2Code("INVALID")).isEmpty();
+        assertThat(service.findByAlpha2Code(null).await().indefinitely()).isNull();
+        assertThat(service.findByAlpha2Code(" ").await().indefinitely()).isNull();
+        assertThat(service.findByAlpha2Code("INVALID").await().indefinitely()).isNull();
 
-        when(countryRepository.findByAlpha2Code(Alpha2Code.of("EC"))).thenReturn(Optional.of(country));
-        final Optional<CountryResponse> result = service.findByAlpha2Code("ec");
+        when(countryRepository.findByAlpha2Code(Alpha2Code.of("EC"))).thenReturn(Uni.createFrom().item(country));
+        final CountryResponse result = service.findByAlpha2Code("ec").await().indefinitely();
 
-        assertThat(result).isPresent();
-        assertThat(result.get().alpha2Code()).isEqualTo("EC");
+        assertThat(result).isNotNull();
+        assertThat(result.alpha2Code()).isEqualTo("EC");
     }
 
     @Test
     void shouldFindByAlpha3Code() {
-        assertThat(service.findByAlpha3Code(null)).isEmpty();
-        assertThat(service.findByAlpha3Code(" ")).isEmpty();
-        assertThat(service.findByAlpha3Code("INVALID")).isEmpty();
+        assertThat(service.findByAlpha3Code(null).await().indefinitely()).isNull();
+        assertThat(service.findByAlpha3Code(" ").await().indefinitely()).isNull();
+        assertThat(service.findByAlpha3Code("INVALID").await().indefinitely()).isNull();
 
-        when(countryRepository.findByAlpha3Code(Alpha3Code.of("ECU"))).thenReturn(Optional.of(country));
-        final Optional<CountryResponse> result = service.findByAlpha3Code("ecu");
+        when(countryRepository.findByAlpha3Code(Alpha3Code.of("ECU"))).thenReturn(Uni.createFrom().item(country));
+        final CountryResponse result = service.findByAlpha3Code("ecu").await().indefinitely();
 
-        assertThat(result).isPresent();
-        assertThat(result.get().alpha3Code()).isEqualTo("ECU");
+        assertThat(result).isNotNull();
+        assertThat(result.alpha3Code()).isEqualTo("ECU");
     }
 
     @Test
     void shouldFindByNumericCode() {
-        assertThat(service.findByNumericCode(null)).isEmpty();
-        assertThat(service.findByNumericCode(" ")).isEmpty();
-        assertThat(service.findByNumericCode("INVALID")).isEmpty();
+        assertThat(service.findByNumericCode(null).await().indefinitely()).isNull();
+        assertThat(service.findByNumericCode(" ").await().indefinitely()).isNull();
+        assertThat(service.findByNumericCode("INVALID").await().indefinitely()).isNull();
 
-        when(countryRepository.findByNumericCode(NumericCode.of("218"))).thenReturn(Optional.of(country));
-        final Optional<CountryResponse> result = service.findByNumericCode("218");
+        when(countryRepository.findByNumericCode(NumericCode.of("218"))).thenReturn(Uni.createFrom().item(country));
+        final CountryResponse result = service.findByNumericCode("218").await().indefinitely();
 
-        assertThat(result).isPresent();
-        assertThat(result.get().numericCode()).isEqualTo("218");
+        assertThat(result).isNotNull();
+        assertThat(result.numericCode()).isEqualTo("218");
     }
 
     @Test
     void shouldListAll() {
-        when(countryRepository.findAll()).thenReturn(List.of(country));
-        final List<CountryResponse> list = service.listAll();
+        when(countryRepository.findAll()).thenReturn(Multi.createFrom().items(country));
+        final List<CountryResponse> list = service.listAll().collect().asList().await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).alpha2Code()).isEqualTo("EC");
@@ -126,12 +127,12 @@ class GetCountryQueryServiceTest {
 
     @Test
     void shouldListByStatus() {
-        assertThat(service.listByStatus(null)).isEmpty();
-        assertThat(service.listByStatus(" ")).isEmpty();
-        assertThat(service.listByStatus("INVALID_STATUS")).isEmpty();
+        assertThat(service.listByStatus(null).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByStatus(" ").collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByStatus("INVALID_STATUS").collect().asList().await().indefinitely()).isEmpty();
 
-        when(countryRepository.findByStatus(GeographicRecordStatus.ACTIVE)).thenReturn(List.of(country));
-        final List<CountryResponse> list = service.listByStatus("active");
+        when(countryRepository.findByStatus(GeographicRecordStatus.ACTIVE)).thenReturn(Multi.createFrom().items(country));
+        final List<CountryResponse> list = service.listByStatus("active").collect().asList().await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).status()).isEqualTo("ACTIVE");
@@ -139,7 +140,7 @@ class GetCountryQueryServiceTest {
 
     @Test
     void shouldFindNamesByCountryId() {
-        assertThat(service.findNamesByCountryId(null)).isEmpty();
+        assertThat(service.findNamesByCountryId(null).collect().asList().await().indefinitely()).isEmpty();
 
         final UUID nameId = UUID.randomUUID();
         final CountryName countryName = new CountryName(
@@ -152,8 +153,8 @@ class GetCountryQueryServiceTest {
                 validity,
                 auditInfo);
 
-        when(countryRepository.findNamesByCountryId(countryId)).thenReturn(List.of(countryName));
-        final List<CountryNameResponse> names = service.findNamesByCountryId(countryId.value());
+        when(countryRepository.findNamesByCountryId(countryId)).thenReturn(Multi.createFrom().items(countryName));
+        final List<CountryNameResponse> names = service.findNamesByCountryId(countryId.value()).collect().asList().await().indefinitely();
 
         assertThat(names).hasSize(1);
         assertThat(names.get(0).name()).isEqualTo("República del Ecuador");

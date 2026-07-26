@@ -1,12 +1,11 @@
-package com.alexastudillo.geographicreference.domain.port.output;
+package com.alexastudillo.geographicreference.application.port.output;
 
 import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeDivisionType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-
-import java.util.List;
-import java.util.Optional;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 
 /**
  * Output port for {@link AdministrativeDivisionType} persistence.
@@ -16,13 +15,13 @@ import java.util.Optional;
  */
 public interface AdministrativeDivisionTypeRepository {
 
-    Optional<AdministrativeDivisionType> findById(DivisionTypeId id);
+    Uni<AdministrativeDivisionType> findById(DivisionTypeId id);
 
-    Optional<AdministrativeDivisionType> findByCountryIdAndCode(CountryId countryId, String code);
+    Uni<AdministrativeDivisionType> findByCountryIdAndCode(CountryId countryId, String code);
 
-    List<AdministrativeDivisionType> findByCountryId(CountryId countryId);
+    Multi<AdministrativeDivisionType> findByCountryId(CountryId countryId);
 
-    List<AdministrativeDivisionType> findByCountryIdAndStatus(CountryId countryId, GeographicRecordStatus status);
+    Multi<AdministrativeDivisionType> findByCountryIdAndStatus(CountryId countryId, GeographicRecordStatus status);
 
-    AdministrativeDivisionType save(AdministrativeDivisionType type);
+    Uni<AdministrativeDivisionType> save(AdministrativeDivisionType type);
 }

@@ -1,12 +1,14 @@
 package com.alexastudillo.geographicreference.application.service;
 
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionTypeResponse;
+import com.alexastudillo.geographicreference.application.port.output.AdministrativeDivisionTypeRepository;
 import com.alexastudillo.geographicreference.domain.model.entity.AdministrativeDivisionType;
 import com.alexastudillo.geographicreference.domain.model.enums.GeographicRecordStatus;
 import com.alexastudillo.geographicreference.domain.model.valobj.AuditInfo;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.DivisionTypeId;
-import com.alexastudillo.geographicreference.domain.port.output.AdministrativeDivisionTypeRepository;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +16,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,34 +56,34 @@ class GetAdministrativeDivisionTypeQueryServiceTest {
 
     @Test
     void shouldFindById() {
-        assertThat(service.findById(null)).isEmpty();
+        assertThat(service.findById(null).await().indefinitely()).isNull();
 
-        when(repository.findById(typeId)).thenReturn(Optional.of(type));
-        final Optional<AdministrativeDivisionTypeResponse> result = service.findById(typeId.value());
+        when(repository.findById(typeId)).thenReturn(Uni.createFrom().item(type));
+        final AdministrativeDivisionTypeResponse result = service.findById(typeId.value()).await().indefinitely();
 
-        assertThat(result).isPresent();
-        assertThat(result.get().code()).isEqualTo("PROVINCE");
+        assertThat(result).isNotNull();
+        assertThat(result.code()).isEqualTo("PROVINCE");
     }
 
     @Test
     void shouldFindByCountryIdAndCode() {
-        assertThat(service.findByCountryIdAndCode(null, "PROVINCE")).isEmpty();
-        assertThat(service.findByCountryIdAndCode(countryId.value(), null)).isEmpty();
-        assertThat(service.findByCountryIdAndCode(countryId.value(), " ")).isEmpty();
+        assertThat(service.findByCountryIdAndCode(null, "PROVINCE").await().indefinitely()).isNull();
+        assertThat(service.findByCountryIdAndCode(countryId.value(), null).await().indefinitely()).isNull();
+        assertThat(service.findByCountryIdAndCode(countryId.value(), " ").await().indefinitely()).isNull();
 
-        when(repository.findByCountryIdAndCode(countryId, "PROVINCE")).thenReturn(Optional.of(type));
-        final Optional<AdministrativeDivisionTypeResponse> result = service.findByCountryIdAndCode(countryId.value(), "province");
+        when(repository.findByCountryIdAndCode(countryId, "PROVINCE")).thenReturn(Uni.createFrom().item(type));
+        final AdministrativeDivisionTypeResponse result = service.findByCountryIdAndCode(countryId.value(), "province").await().indefinitely();
 
-        assertThat(result).isPresent();
-        assertThat(result.get().code()).isEqualTo("PROVINCE");
+        assertThat(result).isNotNull();
+        assertThat(result.code()).isEqualTo("PROVINCE");
     }
 
     @Test
     void shouldListByCountryId() {
-        assertThat(service.listByCountryId(null)).isEmpty();
+        assertThat(service.listByCountryId(null).collect().asList().await().indefinitely()).isEmpty();
 
-        when(repository.findByCountryId(countryId)).thenReturn(List.of(type));
-        final List<AdministrativeDivisionTypeResponse> list = service.listByCountryId(countryId.value());
+        when(repository.findByCountryId(countryId)).thenReturn(Multi.createFrom().items(type));
+        final List<AdministrativeDivisionTypeResponse> list = service.listByCountryId(countryId.value()).collect().asList().await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).code()).isEqualTo("PROVINCE");
@@ -90,13 +91,13 @@ class GetAdministrativeDivisionTypeQueryServiceTest {
 
     @Test
     void shouldListByCountryIdAndStatus() {
-        assertThat(service.listByCountryIdAndStatus(null, "ACTIVE")).isEmpty();
-        assertThat(service.listByCountryIdAndStatus(countryId.value(), null)).isEmpty();
-        assertThat(service.listByCountryIdAndStatus(countryId.value(), " ")).isEmpty();
-        assertThat(service.listByCountryIdAndStatus(countryId.value(), "INVALID")).isEmpty();
+        assertThat(service.listByCountryIdAndStatus(null, "ACTIVE").collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByCountryIdAndStatus(countryId.value(), null).collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByCountryIdAndStatus(countryId.value(), " ").collect().asList().await().indefinitely()).isEmpty();
+        assertThat(service.listByCountryIdAndStatus(countryId.value(), "INVALID").collect().asList().await().indefinitely()).isEmpty();
 
-        when(repository.findByCountryIdAndStatus(countryId, GeographicRecordStatus.ACTIVE)).thenReturn(List.of(type));
-        final List<AdministrativeDivisionTypeResponse> list = service.listByCountryIdAndStatus(countryId.value(), "active");
+        when(repository.findByCountryIdAndStatus(countryId, GeographicRecordStatus.ACTIVE)).thenReturn(Multi.createFrom().items(type));
+        final List<AdministrativeDivisionTypeResponse> list = service.listByCountryIdAndStatus(countryId.value(), "active").collect().asList().await().indefinitely();
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).status()).isEqualTo("ACTIVE");

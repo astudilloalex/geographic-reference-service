@@ -1,9 +1,9 @@
 package com.alexastudillo.geographicreference.application.port.input;
 
 import com.alexastudillo.geographicreference.application.dto.AdministrativeDivisionTypeResponse;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -11,11 +11,11 @@ import java.util.UUID;
  */
 public interface GetAdministrativeDivisionTypeQueryPort {
 
-    Optional<AdministrativeDivisionTypeResponse> findById(UUID id);
+    Uni<AdministrativeDivisionTypeResponse> findById(UUID id);
 
-    Optional<AdministrativeDivisionTypeResponse> findByCountryIdAndCode(UUID countryId, String code);
+    Uni<AdministrativeDivisionTypeResponse> findByCountryIdAndCode(UUID countryId, String code);
 
-    List<AdministrativeDivisionTypeResponse> listByCountryId(UUID countryId);
+    Multi<AdministrativeDivisionTypeResponse> listByCountryId(UUID countryId);
 
-    List<AdministrativeDivisionTypeResponse> listByCountryIdAndStatus(UUID countryId, String status);
+    Multi<AdministrativeDivisionTypeResponse> listByCountryIdAndStatus(UUID countryId, String status);
 }

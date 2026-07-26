@@ -1,4 +1,4 @@
-package com.alexastudillo.geographicreference.domain.port.output;
+package com.alexastudillo.geographicreference.application.port.output;
 
 import com.alexastudillo.geographicreference.domain.model.entity.Country;
 import com.alexastudillo.geographicreference.domain.model.entity.CountryName;
@@ -7,9 +7,8 @@ import com.alexastudillo.geographicreference.domain.model.valobj.Alpha2Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.Alpha3Code;
 import com.alexastudillo.geographicreference.domain.model.valobj.CountryId;
 import com.alexastudillo.geographicreference.domain.model.valobj.NumericCode;
-
-import java.util.List;
-import java.util.Optional;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 
 /**
  * Output port for the {@link Country} aggregate persistence.
@@ -19,23 +18,23 @@ import java.util.Optional;
  */
 public interface CountryRepository {
 
-    Optional<Country> findById(CountryId id);
+    Uni<Country> findById(CountryId id);
 
-    Optional<Country> findByAlpha2Code(Alpha2Code code);
+    Uni<Country> findByAlpha2Code(Alpha2Code code);
 
-    Optional<Country> findByAlpha3Code(Alpha3Code code);
+    Uni<Country> findByAlpha3Code(Alpha3Code code);
 
-    Optional<Country> findByNumericCode(NumericCode code);
+    Uni<Country> findByNumericCode(NumericCode code);
 
-    List<Country> findByStatus(GeographicRecordStatus status);
+    Multi<Country> findByStatus(GeographicRecordStatus status);
 
-    List<Country> findAll();
+    Multi<Country> findAll();
 
-    Country save(Country country);
+    Uni<Country> save(Country country);
 
     // ── Country Names ──────────────────────────────────────────────────────
 
-    List<CountryName> findNamesByCountryId(CountryId countryId);
+    Multi<CountryName> findNamesByCountryId(CountryId countryId);
 
-    CountryName saveName(CountryName name);
+    Uni<CountryName> saveName(CountryName name);
 }
