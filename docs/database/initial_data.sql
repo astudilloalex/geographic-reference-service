@@ -21,7 +21,7 @@ INSERT INTO
     )
 VALUES
     (
-        '019f9fd7-ade6-79bb-93b9-848cdda34c19'
+        '019f9fd7-ade6-79bb-93b9-848cdda34c19',
         'EC',
         'ECU',
         '218',

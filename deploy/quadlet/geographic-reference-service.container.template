@@ -16,6 +16,7 @@ Pull=never
 NoNewPrivileges=true
 DropCapability=all
 ReadOnly=true
+PidsLimit=256
 LogDriver=journald
 
 [Service]
@@ -23,6 +24,10 @@ Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=300
 TimeoutStopSec=30
+MemoryAccounting=true
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=256
 
 [Install]
 WantedBy=default.target

@@ -26,6 +26,10 @@ Emulating only the final container-image build is not sufficient. The workflow
 uses `quarkus.native.march=compatibility` so the resulting executable does not
 require the hosted runner CPU's `x86-64-v3` extensions.
 
+The generated service limits the container to 512 MiB of memory, one CPU, and
+256 processes/tasks. Adjust `MemoryMax`, `CPUQuota`, `PidsLimit`, and `TasksMax`
+in the Quadlet template only after observing production usage.
+
 As the VPS administrator, allow the user's systemd services to run even when
 `deploy` does not have an active login session:
 
