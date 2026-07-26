@@ -16,7 +16,11 @@ val quarkusPlatformVersion: String by project
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     implementation("io.quarkus:quarkus-arc")
+    implementation("io.quarkus:quarkus-flyway")
+    implementation("io.quarkus:quarkus-jdbc-postgresql")
+    implementation("io.quarkus:quarkus-reactive-pg-client")
     implementation("io.smallrye.reactive:mutiny")
+    implementation("org.flywaydb:flyway-database-postgresql")
     testImplementation("io.quarkus:quarkus-junit")
     testImplementation("com.tngtech.archunit:archunit:1.4.2")
     testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")

@@ -13,6 +13,7 @@ class ArchitectureTest {
     private static final String BASE_PACKAGE = "com.alexastudillo.geographicreference";
     private static final String DOMAIN_PACKAGE = BASE_PACKAGE + ".domain..";
     private static final String APPLICATION_PACKAGE = BASE_PACKAGE + ".application..";
+    private static final String INFRASTRUCTURE_PACKAGE = BASE_PACKAGE + ".infrastructure..";
 
     private final JavaClasses projectClasses = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
@@ -35,6 +36,14 @@ class ArchitectureTest {
                         DOMAIN_PACKAGE,
                         "java..",
                         "io.smallrye.mutiny..")
+                .check(projectClasses);
+    }
+
+    @Test
+    void innerLayersShouldNotDependOnInfrastructure() {
+        noClasses()
+                .that().resideInAnyPackage(DOMAIN_PACKAGE, APPLICATION_PACKAGE)
+                .should().dependOnClassesThat().resideInAPackage(INFRASTRUCTURE_PACKAGE)
                 .check(projectClasses);
     }
 

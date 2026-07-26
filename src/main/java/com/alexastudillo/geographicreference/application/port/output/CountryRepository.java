@@ -31,11 +31,7 @@ public interface CountryRepository {
 
     Uni<List<Country>> findAll();
 
-    Uni<Country> save(Country country);
-
     // ── Country Names ──────────────────────────────────────────────────────
 
     Uni<List<CountryName>> findNamesByCountryId(CountryId countryId);
-
-    Uni<CountryName> saveName(CountryName name);
 }

@@ -24,6 +24,4 @@ public interface AdministrativeDivisionTypeRepository {
 
     Uni<List<AdministrativeDivisionType>> findByCountryIdAndStatus(CountryId countryId,
             GeographicRecordStatus status);
-
-    Uni<AdministrativeDivisionType> save(AdministrativeDivisionType type);
 }

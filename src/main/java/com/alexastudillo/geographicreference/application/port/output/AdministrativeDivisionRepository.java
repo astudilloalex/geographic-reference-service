@@ -33,19 +33,13 @@ public interface AdministrativeDivisionRepository {
             DivisionTypeId typeId,
             GeographicRecordStatus status);
 
-    Uni<AdministrativeDivision> save(AdministrativeDivision division);
-
     // ── Identifiers ────────────────────────────────────────────────────────
 
     Uni<List<AdministrativeDivisionIdentifier>> findIdentifiersByDivisionId(CountryId countryId,
             DivisionId divisionId);
 
-    Uni<AdministrativeDivisionIdentifier> saveIdentifier(AdministrativeDivisionIdentifier identifier);
-
     // ── Names ──────────────────────────────────────────────────────────────
 
     Uni<List<AdministrativeDivisionName>> findNamesByDivisionId(CountryId countryId,
             DivisionId divisionId);
-
-    Uni<AdministrativeDivisionName> saveName(AdministrativeDivisionName name);
 }
