@@ -2,6 +2,13 @@ Project GeographicReferenceServiceV1 {
   database_type: 'PostgreSQL'
 
   Note: '''
+    STATUS: Legacy proposed design input, not an executable or current production schema.
+    The approved Phase 1 model is specs/001-read-geographic-catalog/data-model.md. The DBML
+    must be revised with implementation before it becomes normative; known differences include
+    revision-scoped snapshots, nullable independence, strict half-open periods, multiple
+    division types at level three, identifier schemes, provenance, active-revision views,
+    and removal of runtime optimistic-concurrency semantics.
+
     Geographic Reference Service V1 - bounded context for global geographic
     reference data.
 

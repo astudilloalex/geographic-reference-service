@@ -1,0 +1,3633 @@
+openapi: 3.1.1
+info:
+  title: Geographic Reference Service API
+  version: 1.0.0
+  summary: Authenticated, read-only geographic reference catalog and operations API.
+  license:
+    name: Internal use only
+    identifier: LicenseRef-Internal-Use-Only
+  description: |
+    Canonical Phase 1 contract for the immutable geographic catalog. The catalog surface
+    exposes only the activated catalog revision and never mutates catalog data. Catalog
+    routes require `geographic-reference.read`; operational routes require
+    `geographic-reference.observe`.
+
+    Current catalog queries use the current UTC calendar date and expose only `ACTIVE`
+    records whose half-open validity interval contains that date. Explicit historical
+    queries use `asOf` and may expose `ACTIVE`, `DEPRECATED`, or `RETIRED` records valid on
+    that date. `DRAFT` is never externally visible. A non-null `validFrom` is inclusive, a
+    non-null `validUntil` is exclusive, and null is an open boundary. Historical queries
+    before the effective endpoint coverage start are rejected rather than inferred.
+
+    Presentation-name selection uses the requested canonical BCP 47 tag, then its primary
+    language, then the entity default name. Name-list `language` and `nameType` parameters
+    are literal filters and do not invoke fallback. Collection order and bounds are fixed by
+    each operation. Unknown query parameters and repeated singleton query parameters are
+    rejected.
+
+    Successful catalog responses use private revalidation. Their weak ETag covers the
+    catalog revision, normalized request dimensions, effective UTC date, media type, and
+    authorization representation variant. `If-None-Match` is evaluated only after access,
+    input, dependency, coverage, and resource checks. ETags are cache validators only and
+    grant no update rights. Unsupported methods on a declared path return RFC 9457
+    `METHOD_NOT_ALLOWED` with `Allow: GET, HEAD`; no such method is declared as an operation.
+servers:
+  - url: /
+    description: Gateway-relative service root.
+tags:
+  - name: Catalog
+    description: Activated catalog metadata.
+  - name: Countries
+    description: ISO-aligned countries, territories, and their names.
+  - name: Divisions
+    description: Bounded Ecuador political-administrative reference queries.
+  - name: Health
+    description: Authenticated liveness, readiness, and startup observations.
+  - name: Operations
+    description: Authenticated metrics and build/catalog information.
+x-method-not-allowed-response:
+  description: A method other than GET or HEAD on any declared path returns this RFC 9457 response without evaluating catalog input or resource existence.
+  headers:
+    Allow:
+      description: Complete safe-method allowlist for every declared path.
+      required: true
+      schema:
+        type: string
+        const: GET, HEAD
+      example: GET, HEAD
+    Cache-Control:
+      $ref: '#/components/headers/NoStoreCacheControl'
+    Date:
+      $ref: '#/components/headers/ResponseDate'
+    X-Trace-Id:
+      $ref: '#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/components/schemas/MethodNotAllowedProblem'
+      example:
+        type: urn:problem-type:geographic-reference:method-not-allowed
+        title: Method not allowed
+        status: 405
+        detail: This resource supports only GET and HEAD.
+        instance: /v1/countries
+        code: METHOD_NOT_ALLOWED
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+paths:
+  /v1/catalog:
+    get:
+      tags: [Catalog]
+      operationId: getCatalog
+      summary: Get activated catalog metadata
+      description: |
+        Returns exact source, coverage, count, language, identifier, migration, and exclusion
+        metadata for the one activated revision. No query parameters are accepted.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, catalog-dependency-and-expected-revision, catalog-metadata-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogMetadataOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/UnsupportedQueryBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Catalog]
+      operationId: headCatalog
+      summary: Validate activated catalog metadata without a body
+      description: Executes the same access, validation, dependency, resolution, and cache pipeline as GET and returns identical status and headers with no response body.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, catalog-dependency-and-expected-revision, catalog-metadata-resolution, if-none-match]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries:
+    get:
+      tags: [Countries]
+      operationId: listCountries
+      summary: List visible countries and territories
+      description: Returns a bounded page ordered by normalized ISO alpha-2 code. An out-of-range page is an empty successful page with `hasNext=false`.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, duplicate-query-parameter, pagination, language, as-of, catalog-dependency-and-expected-revision, collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CountryPageOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/CountryListBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Countries]
+      operationId: headCountries
+      summary: Validate the country listing without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, duplicate-query-parameter, pagination, language, as-of, catalog-dependency-and-expected-revision, collection-resolution, if-none-match]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}:
+    get:
+      tags: [Countries]
+      operationId: getCountry
+      summary: Resolve a country by an ISO 3166-1 code
+      description: Resolves alpha-2, alpha-3, or three-digit numeric input to one canonical alpha-2 country representation. Alphabetic input is normalized to uppercase; numeric leading zeroes are significant.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, unsupported-query-parameter, duplicate-query-parameter, language, as-of, requested-country-visibility, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CountryOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/CountryItemBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CountryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Countries]
+      operationId: headCountry
+      summary: Resolve a country without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, unsupported-query-parameter, duplicate-query-parameter, language, as-of, requested-country-visibility, if-none-match]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/names:
+    get:
+      tags: [Countries]
+      operationId: listCountryNames
+      summary: List country names
+      description: Returns a bounded name page in canonical language, fixed name-type, preferred-first, Unicode case-folded NFC name, and original NFC code-point order. `language` and `nameType` are exact record filters; no matches is an empty page.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, unsupported-query-parameter, duplicate-query-parameter, pagination, language, name-type, as-of, requested-country-visibility, name-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_NAME_TYPE, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/NameType'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/NamePageOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/CountryNamesBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CountryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Countries]
+      operationId: headCountryNames
+      summary: Validate a country-name page without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, unsupported-query-parameter, duplicate-query-parameter, pagination, language, name-type, as-of, requested-country-visibility, name-collection-resolution, if-none-match]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_NAME_TYPE, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/NameType'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/division-types:
+    get:
+      tags: [Divisions]
+      operationId: listDivisionTypes
+      summary: List configured administrative division types
+      description: Returns active types ordered by hierarchy level then type code. V1 covers Ecuador only and returns four public types across three levels.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, pagination, country-current-visibility, division-type-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/DivisionTypePageOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/DivisionTypesBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DivisionCoverageNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headDivisionTypes
+      summary: Validate the division-type listing without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, pagination, country-current-visibility, division-type-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/divisions:
+    get:
+      tags: [Divisions]
+      operationId: listRootDivisions
+      summary: List root administrative divisions
+      description: Returns visible first-level divisions ordered by canonical DPA code. The V1 Ecuador result contains provinces only; an out-of-range page is empty.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, pagination, language, as-of, requested-country-visibility, root-division-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/DivisionPageOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/RootDivisionsBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DivisionCoverageNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headRootDivisions
+      summary: Validate the root-division listing without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, pagination, language, as-of, requested-country-visibility, root-division-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/divisions/{canonicalCode}:
+    get:
+      tags: [Divisions]
+      operationId: getDivision
+      summary: Resolve a division by canonical DPA code
+      description: Resolves an unchanged country-scoped two-, four-, or six-digit INEC DPA code. Leading zeroes are significant and separators, whitespace, signs, and non-digits are invalid.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, language, as-of, requested-country-visibility, division-existence-and-visibility, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/DivisionOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/DivisionItemBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DivisionResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headDivision
+      summary: Resolve a division without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, language, as-of, requested-country-visibility, division-existence-and-visibility, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/division-identifiers/{schemeCode}/{identifierValue}:
+    get:
+      tags: [Divisions]
+      operationId: resolveDivisionIdentifier
+      summary: Resolve a division by an approved external identifier
+      description: "`EC_INEC_DPA` accepts an unchanged two-, four-, or six-digit value. `ISO_3166_2` accepts an uppercase-normalized `EC-[A-Z]{1,2}` value and covers the 24 provinces only. Scheme codes are normalized to uppercase."
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, identifier-scheme-support, identifier-format, language, as-of, requested-country-visibility, identifier-and-division-visibility, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, UNSUPPORTED_IDENTIFIER_SCHEME, INVALID_IDENTIFIER_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, IDENTIFIER_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/SchemeCode'
+        - $ref: '#/components/parameters/IdentifierValue'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/DivisionOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/IdentifierBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/IdentifierResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headDivisionIdentifier
+      summary: Resolve an external division identifier without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, identifier-scheme-support, identifier-format, language, as-of, requested-country-visibility, identifier-and-division-visibility, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, UNSUPPORTED_IDENTIFIER_SCHEME, INVALID_IDENTIFIER_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, IDENTIFIER_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/SchemeCode'
+        - $ref: '#/components/parameters/IdentifierValue'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/divisions/{canonicalCode}/names:
+    get:
+      tags: [Divisions]
+      operationId: listDivisionNames
+      summary: List division names
+      description: Returns a bounded name page with the same fixed ordering as country names. Filters are literal. The initial catalog contains exactly one preferred Spanish `OFFICIAL` name for each included division.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, pagination, language, name-type, as-of, requested-country-visibility, division-existence-and-visibility, name-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_NAME_TYPE, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/NameType'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/NamePageOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/DivisionNamesBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DivisionResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headDivisionNames
+      summary: Validate a division-name page without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, pagination, language, name-type, as-of, requested-country-visibility, division-existence-and-visibility, name-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_NAME_TYPE, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/NameType'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/divisions/{canonicalCode}/children:
+    get:
+      tags: [Divisions]
+      operationId: listDivisionChildren
+      summary: List direct child divisions
+      description: Returns only visible children at the immediately following configured hierarchy level, ordered by canonical DPA code. A visible level-three division returns an empty page.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, pagination, language, as-of, requested-country-visibility, parent-division-existence-and-visibility, direct-child-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/DivisionPageOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/DivisionChildrenBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DivisionResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headDivisionChildren
+      summary: Validate a direct-child page without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, pagination, language, as-of, requested-country-visibility, parent-division-existence-and-visibility, direct-child-collection-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_PAGINATION, PAGE_SIZE_LIMIT_EXCEEDED, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /v1/countries/{countryCode}/divisions/{canonicalCode}/ancestors:
+    get:
+      tags: [Divisions]
+      operationId: listDivisionAncestors
+      summary: List bounded division ancestors
+      description: Returns at most two visible ancestors from immediate parent to root. A root division returns an empty successful result. This is not an arbitrary recursive hierarchy export.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, language, as-of, requested-country-visibility, division-existence-and-visibility, bounded-ancestor-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/AncestorListOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/DivisionItemBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DivisionResourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Divisions]
+      operationId: headDivisionAncestors
+      summary: Validate the bounded ancestor result without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.read]
+      x-head-response-body: forbidden
+      x-validation-order: [authentication, authorization, country-code-format, catalog-dependency-and-expected-revision, country-existence-in-activated-catalog, division-coverage, unsupported-query-parameter, duplicate-query-parameter, division-code-format, language, as-of, requested-country-visibility, division-existence-and-visibility, bounded-ancestor-resolution, if-none-match]
+      x-error-codes-by-status:
+        '400': [INVALID_COUNTRY_CODE_FORMAT, INVALID_DIVISION_CODE_FORMAT, INVALID_LANGUAGE_TAG, INVALID_AS_OF_DATE, AS_OF_OUTSIDE_CATALOG_COVERAGE, DUPLICATE_QUERY_PARAMETER, UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '404': [COUNTRY_NOT_FOUND, DIVISION_COVERAGE_NOT_AVAILABLE, DIVISION_NOT_FOUND]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      parameters:
+        - $ref: '#/components/parameters/CountryCode'
+        - $ref: '#/components/parameters/CanonicalCode'
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/AsOf'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/CatalogHeadOk'
+        '304':
+          $ref: '#/components/responses/CatalogNotModified'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '404':
+          $ref: '#/components/responses/HeadNotFound'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /q/health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Observe process liveness
+      description: Returns `UP` when the process is viable. Temporary PostgreSQL loss alone does not make liveness fail. No query parameters are accepted; a DOWN or unexpected result is an RFC 9457 problem.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, process-viability-evaluation]
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+      responses:
+        '200':
+          $ref: '#/components/responses/LivenessOk'
+        '400':
+          $ref: '#/components/responses/UnsupportedQueryBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    head:
+      tags: [Health]
+      operationId: headLiveness
+      summary: Observe process liveness without a body
+      description: Executes the matching GET health evaluation and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, process-viability-evaluation]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+      responses:
+        '200':
+          $ref: '#/components/responses/OperationalJsonHeadOk'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+  /q/health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Observe catalog readiness
+      description: Returns `UP` only while PostgreSQL can serve approved queries from the complete activated expected revision. Every DOWN result is an RFC 9457 problem, never a successful health body.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, database-and-expected-revision-evaluation]
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      responses:
+        '200':
+          $ref: '#/components/responses/ReadinessOk'
+        '400':
+          $ref: '#/components/responses/UnsupportedQueryBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Health]
+      operationId: headReadiness
+      summary: Observe catalog readiness without a body
+      description: Executes the matching GET health evaluation and returns its status and headers without response content. A failing evaluation remains bodyless only because this is HEAD; GET returns the RFC 9457 problem.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, database-and-expected-revision-evaluation]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      responses:
+        '200':
+          $ref: '#/components/responses/OperationalJsonHeadOk'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /q/health/started:
+    get:
+      tags: [Health]
+      operationId: getStartup
+      summary: Observe startup verification
+      description: Returns `UP` only after configuration, schema compatibility, catalog completeness, and the expected activated revision have been verified. Every DOWN result is an RFC 9457 problem.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, configuration-schema-and-catalog-revision-evaluation]
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      responses:
+        '200':
+          $ref: '#/components/responses/StartupOk'
+        '400':
+          $ref: '#/components/responses/UnsupportedQueryBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Health]
+      operationId: headStartup
+      summary: Observe startup verification without a body
+      description: Executes the matching GET health evaluation and returns its status and headers without response content. A failing evaluation remains bodyless only because this is HEAD; GET returns the RFC 9457 problem.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, configuration-schema-and-catalog-revision-evaluation]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      responses:
+        '200':
+          $ref: '#/components/responses/OperationalJsonHeadOk'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+  /q/metrics:
+    get:
+      tags: [Operations]
+      operationId: getMetrics
+      summary: Scrape OpenMetrics observations
+      description: Returns OpenMetrics 1.0 text covering requests, durations, errors, not-found outcomes, database-pool use, reactive connection acquisition, query counts by route category, readiness, and active catalog revision. Runtime write, command, import, and publication metrics are absent.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, metrics-snapshot]
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenMetricsOk'
+        '400':
+          $ref: '#/components/responses/UnsupportedQueryBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    head:
+      tags: [Operations]
+      operationId: headMetrics
+      summary: Validate the OpenMetrics scrape without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, metrics-snapshot]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenMetricsHeadOk'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+  /q/info:
+    get:
+      tags: [Operations]
+      operationId: getInfo
+      summary: Get build and catalog information
+      description: Returns application version, build revision, expected and currently active catalog revisions, and declared V1 coverage. An unavailable active revision is represented safely without exposing database or infrastructure details.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, catalog-dependency-when-required, info-assembly]
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      responses:
+        '200':
+          $ref: '#/components/responses/InfoOk'
+        '400':
+          $ref: '#/components/responses/UnsupportedQueryBadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags: [Operations]
+      operationId: headInfo
+      summary: Validate build and catalog information without a body
+      description: Executes the matching GET pipeline and returns its status and headers without response content.
+      security:
+        - bearerAuth: []
+      x-required-permissions: [geographic-reference.observe]
+      x-validation-order: [authentication, authorization, unsupported-query-parameter, catalog-dependency-when-required, info-assembly]
+      x-head-response-body: forbidden
+      x-error-codes-by-status:
+        '400': [UNSUPPORTED_QUERY_PARAMETER]
+        '401': [AUTHENTICATION_REQUIRED]
+        '403': [ACCESS_DENIED]
+        '500': [INTERNAL_ERROR]
+        '503': [GEOGRAPHIC_CATALOG_UNAVAILABLE, GEOGRAPHIC_CATALOG_TIMEOUT, CATALOG_REVISION_MISMATCH]
+      responses:
+        '200':
+          $ref: '#/components/responses/OperationalJsonHeadOk'
+        '400':
+          $ref: '#/components/responses/HeadBadRequest'
+        '401':
+          $ref: '#/components/responses/HeadUnauthorized'
+        '403':
+          $ref: '#/components/responses/HeadForbidden'
+        '500':
+          $ref: '#/components/responses/HeadInternalError'
+        '503':
+          $ref: '#/components/responses/HeadServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        RS256 JWT access token validated for signature, configured issuer, audience
+        `geographic-reference-service`, expiration, optional not-before, and subject. Exact
+        permissions are space-delimited values in `scope`; permission implication and opaque
+        token fallback are not supported. Standard OpenAPI security scope arrays remain empty
+        because this is an HTTP bearer scheme; `x-required-permissions` states authorization.
+  parameters:
+    CountryCode:
+      name: countryCode
+      in: path
+      required: true
+      description: ISO 3166-1 alpha-2, alpha-3, or exactly three numeric digits. Alphabetic input is locale-neutrally uppercased; numeric input remains a string and preserves leading zeroes.
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 3
+        pattern: '^(?:[A-Za-z]{2}|[A-Za-z]{3}|[0-9]{3})$'
+      examples:
+        syntheticAlpha2:
+          value: ZZ
+        syntheticAlpha3Lowercase:
+          value: zzz
+        syntheticNumeric:
+          value: '999'
+    CanonicalCode:
+      name: canonicalCode
+      in: path
+      required: true
+      description: "Unchanged Ecuador INEC DPA code: two digits for a province, four for a canton, or six for a level-three area. Leading zeroes are significant."
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 6
+        pattern: '^(?:[0-9]{2}|[0-9]{4}|[0-9]{6})$'
+      example: '990150'
+    SchemeCode:
+      name: schemeCode
+      in: path
+      required: true
+      description: Bounded external-identifier scheme code, normalized to uppercase before support evaluation. V1 supports only `EC_INEC_DPA` and `ISO_3166_2`; another syntactically valid value returns `UNSUPPORTED_IDENTIFIER_SCHEME`.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+        pattern: '^[A-Za-z][A-Za-z0-9_]*$'
+      examples:
+        dpaScheme:
+          value: ec_inec_dpa
+        isoSubdivisionScheme:
+          value: ISO_3166_2
+    IdentifierValue:
+      name: identifierValue
+      in: path
+      required: true
+      description: Scheme-specific identifier. `EC_INEC_DPA` requires 2, 4, or 6 digits; `ISO_3166_2` is uppercased and requires `EC-[A-Z]{1,2}`. The broad transport bound permits stable scheme-specific validation errors.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 35
+      examples:
+        syntheticDpa:
+          value: '990150'
+        syntheticIsoSubdivisionLowercase:
+          value: ec-zz
+    Page:
+      name: page
+      in: query
+      required: false
+      description: One-based page number. Omission selects page 1. Zero, negative, malformed, or repeated values return `INVALID_PAGINATION` or `DUPLICATE_QUERY_PARAMETER`.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 2147483647
+        default: 1
+      example: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: Requested page size. Omission selects 50; valid values are 1 through 100. Values above 100 return `PAGE_SIZE_LIMIT_EXCEEDED`.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 50
+      example: 50
+    Language:
+      name: language
+      in: query
+      required: false
+      description: Canonicalizable BCP 47 language tag of at most 35 characters. Java 25 `Locale.Builder#setLanguageTag` validation and canonicalization are normative; no regular-expression approximation is used. On item and hierarchy operations it selects exact-tag, then primary-language, then default-name fallback. On name lists it is an exact canonical-tag filter. A valid unsupported tag falls back or yields an empty filtered page; an invalid or repeated value is rejected.
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 35
+        x-normative-validator: java.util.Locale.Builder#setLanguageTag (Java 25)
+      examples:
+        primary:
+          value: es
+        regional:
+          value: es-EC
+    NameType:
+      name: nameType
+      in: query
+      required: false
+      description: Uppercase literal name-record type filter. Lowercase, unsupported, or repeated values are rejected and never trigger presentation fallback.
+      schema:
+        $ref: '#/components/schemas/NameType'
+      example: OFFICIAL
+    AsOf:
+      name: asOf
+      in: query
+      required: false
+      description: Strict ISO `YYYY-MM-DD` calendar date. Omission means the current UTC date and current lifecycle rules. An explicit date, including a valid future date, uses ordinary temporal visibility. A date before the active endpoint's revision-bound coverage start is rejected; the initial country and Ecuador division coverages start on 2026-01-01.
+      schema:
+        type: string
+        format: date
+        minLength: 10
+        maxLength: 10
+        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      example: '2030-06-15'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: One bounded HTTP entity-tag list or wildcard. Weak comparison is used after the request would otherwise produce a successful representation. A match returns bodyless 304; malformed or excessive input is rejected as unsupported input.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+      examples:
+        currentValidator:
+          value: 'W/"grs-v1-yP7sA2k0H6Qq1ic0r2pyF6jqNsRiwJ3ESJDV-zcGqLM"'
+        wildcard:
+          value: '*'
+  headers:
+    ETag:
+      description: Weak, representation-specific cache validator. It does not authorize or coordinate writes.
+      required: true
+      schema:
+        type: string
+        pattern: '^W/"grs-v1-[A-Za-z0-9_-]{43}"$'
+      example: 'W/"grs-v1-yP7sA2k0H6Qq1ic0r2pyF6jqNsRiwJ3ESJDV-zcGqLM"'
+    CatalogCacheControl:
+      description: Permits private storage but requires successful revalidation before reuse.
+      required: true
+      schema:
+        type: string
+        const: private, no-cache
+      example: private, no-cache
+    NoStoreCacheControl:
+      description: Prevents storage of operational and problem responses.
+      required: true
+      schema:
+        type: string
+        const: no-store
+      example: no-store
+    CatalogRevision:
+      description: Immutable activated catalog revision used for this complete response snapshot.
+      required: true
+      schema:
+        $ref: '#/components/schemas/CatalogRevision'
+      example: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    ResponseDate:
+      description: HTTP response date in IMF-fixdate form; catalog validators include the effective UTC calendar date.
+      required: true
+      schema:
+        type: string
+        minLength: 29
+        maxLength: 29
+        pattern: '^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT$'
+      example: Sat, 25 Jul 2026 15:04:05 GMT
+    TraceId:
+      description: Safe request trace or correlation identifier.
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+      example: 4bf92f3577b34da6a3ce929d0e0e4736
+    WwwAuthenticate:
+      description: Bearer authentication challenge without token or confidential diagnostic data.
+      required: true
+      schema:
+        type: string
+        pattern: '^Bearer(?: .*)?$'
+      example: Bearer
+  schemas:
+    CatalogRevision:
+      type: string
+      description: Public immutable identity derived from the approved record manifest SHA-256 digest.
+      pattern: '^sha256:[a-f0-9]{64}$'
+      minLength: 71
+      maxLength: 71
+      example: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    LifecycleStatus:
+      type: string
+      description: Public lifecycle state. `DRAFT` is deliberately absent because it is never externally visible. Current queries emit only `ACTIVE`; historical queries may also emit `DEPRECATED` or `RETIRED`.
+      enum: [ACTIVE, DEPRECATED, RETIRED]
+      example: ACTIVE
+    IdentifierStatus:
+      type: string
+      description: Identifier lifecycle state. Current resolution includes only `ACTIVE`; historical resolution may include all declared values when temporally valid. Identifiers have no public draft state.
+      enum: [ACTIVE, DEPRECATED, RETIRED]
+      example: ACTIVE
+    NameType:
+      type: string
+      enum: [OFFICIAL, COMMON, SHORT, ALTERNATIVE, HISTORICAL]
+      description: Fixed literal name classification and sorting order as listed by this enum.
+      example: OFFICIAL
+    DivisionTypeCode:
+      type: string
+      enum: [PROVINCE, CANTON, CANTONAL_SEAT_AREA, RURAL_PARISH]
+      description: Stable public Ecuador division type. The final two types both occupy hierarchy level three.
+      example: PROVINCE
+    ValidityPeriod:
+      type: object
+      additionalProperties: false
+      description: Half-open temporal interval. `validFrom` is inclusive, `validUntil` is exclusive, and null is open-ended. If both are non-null, the end is later than the start.
+      required: [validFrom, validUntil]
+      properties:
+        validFrom:
+          type: [string, 'null']
+          format: date
+          description: Inclusive source-backed validity start, or null when no record boundary is known.
+        validUntil:
+          type: [string, 'null']
+          format: date
+          description: Exclusive source-backed validity end, or null when no end is known.
+    Provenance:
+      type: object
+      additionalProperties: false
+      description: Approved, non-confidential source lineage. It never identifies an HTTP caller or exposes internal source-file locations.
+      required: [sourceAuthority, dataset, sourceRevision, sourceRecordReference, sourceDigest]
+      properties:
+        sourceAuthority:
+          type: string
+          minLength: 1
+          maxLength: 200
+        dataset:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sourceRevision:
+          type: string
+          minLength: 1
+          maxLength: 100
+        effectiveDate:
+          type: [string, 'null']
+          format: date
+          description: Source effective date when the source supplies one; omitted or null otherwise. A release date or API coverage start must never be inferred as an effective date.
+        sourceRecordReference:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Public source object, workbook row, or deterministic manifest-rule reference. It contains no private filesystem location.
+        sourceDigest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+          description: SHA-256 of the exact selected source artifact referenced by this row's provenance, not the source archive or relational-projection digest.
+    SelectedName:
+      type: object
+      additionalProperties: false
+      description: Presentation name selected by exact language, primary-language fallback, or default-name fallback. Omitted `language` uses the default name.
+      required: [value, language, nameType, selection]
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 500
+        language:
+          type: string
+          minLength: 2
+          maxLength: 35
+          x-normative-validator: java.util.Locale.Builder#setLanguageTag (Java 25)
+        nameType:
+          $ref: '#/components/schemas/NameType'
+        selection:
+          type: string
+          enum: [EXACT, PRIMARY_LANGUAGE, DEFAULT]
+    CountryReference:
+      type: object
+      additionalProperties: false
+      required: [alpha2, href]
+      properties:
+        alpha2:
+          type: string
+          const: EC
+        href:
+          type: string
+          format: uri-reference
+          const: /v1/countries/EC
+    DivisionReference:
+      oneOf:
+        - $ref: '#/components/schemas/ProvinceDivisionReference'
+        - $ref: '#/components/schemas/CantonDivisionReference'
+      description: Same-country immediate parent reference. V1 parents can only be a province or canton.
+    ProvinceDivisionReference:
+      type: object
+      additionalProperties: false
+      required: [countryCode, canonicalCode, typeCode, href]
+      properties:
+        countryCode:
+          type: string
+          const: EC
+        canonicalCode:
+          type: string
+          pattern: '^[0-9]{2}$'
+        typeCode:
+          type: string
+          const: PROVINCE
+        href:
+          type: string
+          format: uri-reference
+          pattern: '^/v1/countries/EC/divisions/[0-9]{2}$'
+    CantonDivisionReference:
+      type: object
+      additionalProperties: false
+      required: [countryCode, canonicalCode, typeCode, href]
+      properties:
+        countryCode:
+          type: string
+          const: EC
+        canonicalCode:
+          type: string
+          pattern: '^[0-9]{4}$'
+        typeCode:
+          type: string
+          const: CANTON
+        href:
+          type: string
+          format: uri-reference
+          pattern: '^/v1/countries/EC/divisions/[0-9]{4}$'
+    Country:
+      type: object
+      additionalProperties: false
+      description: Canonical country or ISO-recognized territory representation. Independence is intentionally not represented because the pinned source does not establish it.
+      required: [alpha2, alpha3, numericCode, defaultName, officialName, selectedName, status, validity, provenance, catalogRevision, links]
+      properties:
+        alpha2:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        alpha3:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        numericCode:
+          type: string
+          pattern: '^[0-9]{3}$'
+          description: String form preserves leading zeroes.
+        defaultName:
+          type: string
+          minLength: 1
+          maxLength: 500
+        officialName:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Falls back to the source `name` when no distinct official name exists.
+        selectedName:
+          $ref: '#/components/schemas/SelectedName'
+        status:
+          $ref: '#/components/schemas/LifecycleStatus'
+        validity:
+          $ref: '#/components/schemas/ValidityPeriod'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+        links:
+          $ref: '#/components/schemas/CountryLinks'
+    CountryLinks:
+      type: object
+      additionalProperties: false
+      required: [self, names, divisions]
+      properties:
+        self:
+          type: string
+          format: uri-reference
+        names:
+          type: string
+          format: uri-reference
+        divisions:
+          type: string
+          format: uri-reference
+    LocalizedName:
+      type: object
+      additionalProperties: false
+      description: Literal source-backed name record. Name-list filters match these fields exactly and never change the record through fallback.
+      required: [value, language, nameType, preferred, validity, provenance]
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 500
+        language:
+          type: string
+          minLength: 2
+          maxLength: 35
+          x-normative-validator: java.util.Locale.Builder#setLanguageTag (Java 25)
+        nameType:
+          $ref: '#/components/schemas/NameType'
+        preferred:
+          type: boolean
+        validity:
+          $ref: '#/components/schemas/ValidityPeriod'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    DivisionType:
+      type: object
+      additionalProperties: false
+      description: Active V1 division type returned by the type-list route. Each public code is const-coupled to its exact technical name and hierarchy level.
+      required: [countryCode, code, name, hierarchyLevel, status, provenance, catalogRevision]
+      properties:
+        countryCode:
+          type: string
+          const: EC
+        code:
+          $ref: '#/components/schemas/DivisionTypeCode'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+          description: English technical display name configured for the public type code.
+        hierarchyLevel:
+          type: integer
+          minimum: 1
+          maximum: 3
+        status:
+          $ref: '#/components/schemas/LifecycleStatus'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+      oneOf:
+        - title: Province type
+          properties:
+            code: {type: string, const: PROVINCE}
+            name: {type: string, const: Province}
+            hierarchyLevel: {type: integer, const: 1}
+            status: {type: string, const: ACTIVE}
+          required: [code, name, hierarchyLevel, status]
+        - title: Canton type
+          properties:
+            code: {type: string, const: CANTON}
+            name: {type: string, const: Canton}
+            hierarchyLevel: {type: integer, const: 2}
+            status: {type: string, const: ACTIVE}
+          required: [code, name, hierarchyLevel, status]
+        - title: Cantonal seat area type
+          properties:
+            code: {type: string, const: CANTONAL_SEAT_AREA}
+            name: {type: string, const: Cantonal seat area}
+            hierarchyLevel: {type: integer, const: 3}
+            status: {type: string, const: ACTIVE}
+          required: [code, name, hierarchyLevel, status]
+        - title: Rural parish type
+          properties:
+            code: {type: string, const: RURAL_PARISH}
+            name: {type: string, const: Rural parish}
+            hierarchyLevel: {type: integer, const: 3}
+            status: {type: string, const: ACTIVE}
+          required: [code, name, hierarchyLevel, status]
+    DivisionIdentifier:
+      type: object
+      additionalProperties: false
+      description: Scheme and value are constrained as a pair. DPA values are exact digit strings; ISO subdivision values are canonical uppercase.
+      required: [scheme, value, primary, status, validity, provenance]
+      properties:
+        scheme:
+          type: string
+          enum: [EC_INEC_DPA, ISO_3166_2]
+        value:
+          type: string
+          minLength: 2
+          maxLength: 6
+        primary:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/IdentifierStatus'
+        validity:
+          $ref: '#/components/schemas/ValidityPeriod'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+      oneOf:
+        - title: INEC DPA identifier
+          properties:
+            scheme:
+              type: string
+              const: EC_INEC_DPA
+            value:
+              type: string
+              pattern: '^(?:[0-9]{2}|[0-9]{4}|[0-9]{6})$'
+          required: [scheme, value]
+        - title: ISO 3166-2 province identifier
+          properties:
+            scheme:
+              type: string
+              const: ISO_3166_2
+            value:
+              type: string
+              pattern: '^EC-[A-Z]{1,2}$'
+          required: [scheme, value]
+    DpaDivisionIdentifier:
+      allOf:
+        - $ref: '#/components/schemas/DivisionIdentifier'
+        - type: object
+          properties:
+            scheme:
+              type: string
+              const: EC_INEC_DPA
+          required: [scheme]
+      description: DPA identifier branch used where array position and cardinality are fixed.
+    Iso3166_2DivisionIdentifier:
+      allOf:
+        - $ref: '#/components/schemas/DivisionIdentifier'
+        - type: object
+          properties:
+            scheme:
+              type: string
+              const: ISO_3166_2
+          required: [scheme]
+      description: ISO 3166-2 identifier branch used only as the second province identifier.
+    ProvinceIdentifierList:
+      type: array
+      minItems: 2
+      maxItems: 2
+      uniqueItems: true
+      prefixItems:
+        - $ref: '#/components/schemas/DpaDivisionIdentifier'
+        - $ref: '#/components/schemas/Iso3166_2DivisionIdentifier'
+      items: false
+      description: Exactly two identifiers in fixed order, DPA first and ISO 3166-2 second.
+    DpaOnlyIdentifierList:
+      type: array
+      minItems: 1
+      maxItems: 1
+      prefixItems:
+        - $ref: '#/components/schemas/DpaDivisionIdentifier'
+      items: false
+      description: Exactly one DPA identifier; ISO 3166-2 is prohibited for non-provinces.
+    AdministrativeDivision:
+      type: object
+      additionalProperties: false
+      description: Visible Ecuador division whose type, hierarchy level, canonical-code form, parent kind, ancestor chain, selected name, and identifiers satisfy one constrained V1 variant and the same query-date rules.
+      x-parent-code-prefix-required: true
+      x-dpa-identifier-equals-canonical-code: true
+      required: [country, canonicalCode, type, hierarchyLevel, parent, defaultName, officialName, selectedName, identifiers, status, validity, provenance, catalogRevision, links]
+      properties:
+        country:
+          $ref: '#/components/schemas/CountryReference'
+        canonicalCode:
+          type: string
+          pattern: '^(?:[0-9]{2}|[0-9]{4}|[0-9]{6})$'
+        type:
+          $ref: '#/components/schemas/DivisionTypeCode'
+        hierarchyLevel:
+          type: integer
+          minimum: 1
+          maximum: 3
+        parent:
+          oneOf:
+            - $ref: '#/components/schemas/DivisionReference'
+            - type: 'null'
+          description: Same-country immediate parent, or null only for a level-one province.
+        defaultName:
+          type: string
+          minLength: 1
+          maxLength: 500
+        officialName:
+          type: string
+          minLength: 1
+          maxLength: 500
+        selectedName:
+          $ref: '#/components/schemas/SelectedName'
+        identifiers:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/DivisionIdentifier'
+          description: The selected division variant applies exact cardinality, order, and scheme constraints without an overlapping array union.
+        status:
+          $ref: '#/components/schemas/LifecycleStatus'
+        validity:
+          $ref: '#/components/schemas/ValidityPeriod'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+        links:
+          $ref: '#/components/schemas/DivisionLinks'
+      oneOf:
+        - title: Province
+          properties:
+            canonicalCode:
+              type: string
+              pattern: '^[0-9]{2}$'
+            type:
+              type: string
+              const: PROVINCE
+            hierarchyLevel:
+              type: integer
+              const: 1
+            parent:
+              type: 'null'
+            identifiers:
+              $ref: '#/components/schemas/ProvinceIdentifierList'
+          required: [canonicalCode, type, hierarchyLevel, parent, identifiers]
+        - title: Canton
+          properties:
+            canonicalCode:
+              type: string
+              pattern: '^[0-9]{4}$'
+            type:
+              type: string
+              const: CANTON
+            hierarchyLevel:
+              type: integer
+              const: 2
+            parent:
+              $ref: '#/components/schemas/ProvinceDivisionReference'
+            identifiers:
+              $ref: '#/components/schemas/DpaOnlyIdentifierList'
+          required: [canonicalCode, type, hierarchyLevel, parent, identifiers]
+        - title: Cantonal seat area
+          properties:
+            canonicalCode:
+              type: string
+              pattern: '^[0-9]{4}50$'
+            type:
+              type: string
+              const: CANTONAL_SEAT_AREA
+            hierarchyLevel:
+              type: integer
+              const: 3
+            parent:
+              $ref: '#/components/schemas/CantonDivisionReference'
+            identifiers:
+              $ref: '#/components/schemas/DpaOnlyIdentifierList'
+          required: [canonicalCode, type, hierarchyLevel, parent, identifiers]
+        - title: Rural parish
+          properties:
+            canonicalCode:
+              type: string
+              pattern: '^[0-9]{4}(?:5[1-9]|[6-9][0-9])$'
+            type:
+              type: string
+              const: RURAL_PARISH
+            hierarchyLevel:
+              type: integer
+              const: 3
+            parent:
+              $ref: '#/components/schemas/CantonDivisionReference'
+            identifiers:
+              $ref: '#/components/schemas/DpaOnlyIdentifierList'
+          required: [canonicalCode, type, hierarchyLevel, parent, identifiers]
+    DivisionLinks:
+      type: object
+      additionalProperties: false
+      required: [self, names, children, ancestors]
+      properties:
+        self:
+          type: string
+          format: uri-reference
+          pattern: '^/v1/countries/EC/divisions/(?:[0-9]{2}|[0-9]{4}|[0-9]{6})$'
+        names:
+          type: string
+          format: uri-reference
+          pattern: '^/v1/countries/EC/divisions/(?:[0-9]{2}|[0-9]{4}|[0-9]{6})/names$'
+        children:
+          type: string
+          format: uri-reference
+          pattern: '^/v1/countries/EC/divisions/(?:[0-9]{2}|[0-9]{4}|[0-9]{6})/children$'
+        ancestors:
+          type: string
+          format: uri-reference
+          pattern: '^/v1/countries/EC/divisions/(?:[0-9]{2}|[0-9]{4}|[0-9]{6})/ancestors$'
+    PageMetadata:
+      type: object
+      additionalProperties: false
+      required: [page, pageSize, hasNext]
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 2147483647
+        pageSize:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        hasNext:
+          type: boolean
+          description: True only when at least one visible item exists after this page. No total count is promised or queried.
+      example:
+        page: 1
+        pageSize: 50
+        hasNext: false
+    CountryPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, catalogRevision]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Country'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+    NamePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, catalogRevision]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/LocalizedName'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+    DivisionTypePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, catalogRevision]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/DivisionType'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+    DivisionPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, catalogRevision]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AdministrativeDivision'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+    AncestorList:
+      type: object
+      additionalProperties: false
+      description: Immediate-parent-to-root result, bounded by the three-level V1 hierarchy.
+      required: [items, catalogRevision]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/AdministrativeDivision'
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+    CatalogMetadata:
+      type: object
+      additionalProperties: false
+      description: Revision-bound metadata. Examples show the initial approved revision; later immutable v1 catalog migrations may change source revisions, hashes, counts, dates, and exclusions within the fixed v1 type and identifier contract without changing this schema.
+      required: [catalogRevision, migrationRevision, countryCoverage, divisionCoverage, exclusions]
+      properties:
+        catalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+        migrationRevision:
+          type: string
+          pattern: '^V[0-9]{3,}$'
+          maxLength: 50
+          example: V003
+          description: Immutable migration version that introduced the activated catalog revision.
+        countryCoverage:
+          $ref: '#/components/schemas/CountryCoverage'
+        divisionCoverage:
+          $ref: '#/components/schemas/DivisionCoverage'
+        exclusions:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CatalogExclusion'
+          description: Exact ordered exclusions declared by the activated revision. The initial approved revision contains the five values in the source manifest.
+    CountryCoverage:
+      type: object
+      additionalProperties: false
+      required: [scope, historicalCoverageStart, countries, nameRecords, nameCounts, languages, codeSchemes, source]
+      properties:
+        scope:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: ISO_3166_1_OFFICIALLY_ASSIGNED
+        historicalCoverageStart:
+          type: string
+          format: date
+          example: '2026-01-01'
+        countries:
+          type: integer
+          minimum: 0
+          example: 249
+        nameRecords:
+          type: integer
+          minimum: 0
+          example: 433
+        nameCounts:
+          $ref: '#/components/schemas/CountryNameCounts'
+        languages:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 2
+            maxLength: 35
+          example: [en]
+        codeSchemes:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum: [ISO_3166_1_ALPHA_2, ISO_3166_1_ALPHA_3, ISO_3166_1_NUMERIC]
+        source:
+          $ref: '#/components/schemas/CountrySource'
+    CountryNameCounts:
+      type: object
+      additionalProperties: false
+      required: [SHORT, OFFICIAL, COMMON, ALTERNATIVE, HISTORICAL]
+      properties:
+        SHORT:
+          type: integer
+          minimum: 0
+          example: 249
+        OFFICIAL:
+          type: integer
+          minimum: 0
+          example: 173
+        COMMON:
+          type: integer
+          minimum: 0
+          example: 11
+        ALTERNATIVE:
+          type: integer
+          minimum: 0
+          example: 0
+        HISTORICAL:
+          type: integer
+          minimum: 0
+          example: 0
+    CountrySource:
+      type: object
+      additionalProperties: false
+      required: [authority, dataset, revision, releaseDate, archiveSha256, iso3166_1Sha256, iso3166_2Sha256, license, authorityNote]
+      properties:
+        authority:
+          type: string
+          minLength: 1
+          maxLength: 160
+          example: Debian iso-codes project
+        dataset:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: iso-codes ISO 3166 data files
+        revision:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: 4.20.1
+        releaseDate:
+          type: string
+          format: date
+          example: '2026-01-01'
+        archiveSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          example: 5d551f3ddb32548c4321e9011720fd97751af0107592f79ebffc939bd32f2268
+        iso3166_1Sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          example: f01b812b57fba9f31ff621bf33e7c7570a01964dbeb5be2167e94decf538c89f
+        iso3166_2Sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          example: 78c90ef7fc25b5c2631aac5f089bc9ff6ec22c025c05b6ddbc087a1f1be2e46a
+        license:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: LGPL-2.1-or-later
+        authorityNote:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: ISO-aligned open dataset; not an official ISO publication.
+    DivisionCoverage:
+      type: object
+      additionalProperties: false
+      required: [countryCode, historicalCoverageStart, sourceEffectiveDate, provinces, cantons, cantonalSeatAreas, ruralParishes, levelThreeAreas, divisions, nameRecords, dpaIdentifiers, iso3166_2Identifiers, divisionIdentifiers, languages, identifierSchemes, includedTypes, source]
+      properties:
+        countryCode:
+          type: string
+          const: EC
+        historicalCoverageStart:
+          type: string
+          format: date
+          example: '2026-01-01'
+        sourceEffectiveDate:
+          type: string
+          format: date
+          example: '2025-12-31'
+        provinces:
+          type: integer
+          minimum: 0
+          example: 24
+        cantons:
+          type: integer
+          minimum: 0
+          example: 222
+        cantonalSeatAreas:
+          type: integer
+          minimum: 0
+          example: 222
+        ruralParishes:
+          type: integer
+          minimum: 0
+          example: 825
+        levelThreeAreas:
+          type: integer
+          minimum: 0
+          example: 1047
+        divisions:
+          type: integer
+          minimum: 0
+          example: 1293
+        nameRecords:
+          type: integer
+          minimum: 0
+          example: 1293
+        dpaIdentifiers:
+          type: integer
+          minimum: 0
+          example: 1293
+        iso3166_2Identifiers:
+          type: integer
+          minimum: 0
+          example: 24
+        divisionIdentifiers:
+          type: integer
+          minimum: 0
+          example: 1317
+          description: Total approved division identifiers across both schemes.
+        languages:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 2
+            maxLength: 35
+          example: [es]
+        identifierSchemes:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          items:
+            type: string
+            enum: [EC_INEC_DPA, ISO_3166_2]
+        includedTypes:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/IncludedDivisionType'
+        source:
+          $ref: '#/components/schemas/DivisionSource'
+    IncludedDivisionType:
+      type: object
+      additionalProperties: false
+      required: [code, hierarchyLevel]
+      properties:
+        code:
+          $ref: '#/components/schemas/DivisionTypeCode'
+        hierarchyLevel:
+          type: integer
+          minimum: 1
+          maximum: 3
+    DivisionSource:
+      type: object
+      additionalProperties: false
+      required: [authority, dataset, revision, effectiveDate, retrievedDate, archiveSha256, detailedArtifactSha256, compactArtifactSha256]
+      properties:
+        authority:
+          type: string
+          minLength: 1
+          maxLength: 160
+          example: Instituto Nacional de Estadistica y Censos del Ecuador (INEC)
+        dataset:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Clasificador Geografico Estadistico 2026
+        revision:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: '2026'
+        effectiveDate:
+          type: string
+          format: date
+          example: '2025-12-31'
+        retrievedDate:
+          type: string
+          format: date
+          example: '2026-07-25'
+        archiveSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          example: 9a2962bcccd88745dba4d61627e27945714049d97571d088e6c6b294be668a2c
+        detailedArtifactSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          example: b6648d27906b12a12f310b30ed7a94c9efcdd0249eaa073647013f8b7029ba5d
+        compactArtifactSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          example: 0d0ae33a0a0023ed44abcaa6b38a1c173fbda423e368a8f12bedda59d65d8f3a
+    CatalogExclusion:
+      type: object
+      additionalProperties: false
+      required: [coverageCode, exclusionCode, excludedCount, description]
+      properties:
+        coverageCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+        exclusionCode:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]{0,99}$'
+        excludedCount:
+          type: [integer, 'null']
+          minimum: 0
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      description: Common successful health representation. Route-specific schemas constrain `check` and active-revision requirements. DOWN and error states use RFC 9457 problems.
+      required: [status, check, service, applicationVersion, buildRevision, expectedCatalogRevision, activeCatalogRevision, observedAt]
+      properties:
+        status:
+          type: string
+          const: UP
+        check:
+          type: string
+          enum: [LIVENESS, READINESS, STARTUP]
+        service:
+          type: string
+          const: geographic-reference-service
+        applicationVersion:
+          type: string
+          minLength: 1
+          maxLength: 100
+        buildRevision:
+          type: string
+          minLength: 7
+          maxLength: 64
+          pattern: '^[A-Fa-f0-9]+$'
+        expectedCatalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+        activeCatalogRevision:
+          oneOf:
+            - $ref: '#/components/schemas/CatalogRevision'
+            - type: 'null'
+          description: Verified revision for readiness/startup; may be null for dependency-independent liveness.
+        observedAt:
+          type: string
+          format: date-time
+    LivenessHealthResponse:
+      allOf:
+        - $ref: '#/components/schemas/HealthResponse'
+        - type: object
+          properties:
+            check:
+              type: string
+              const: LIVENESS
+          required: [check]
+      description: Liveness success. Active catalog revision may be null because temporary database loss does not make liveness fail.
+    ReadinessHealthResponse:
+      allOf:
+        - $ref: '#/components/schemas/HealthResponse'
+        - type: object
+          properties:
+            check:
+              type: string
+              const: READINESS
+            activeCatalogRevision:
+              $ref: '#/components/schemas/CatalogRevision'
+          required: [check, activeCatalogRevision]
+      description: Readiness success with the active revision verified equal to the expected revision.
+    StartupHealthResponse:
+      allOf:
+        - $ref: '#/components/schemas/HealthResponse'
+        - type: object
+          properties:
+            check:
+              type: string
+              const: STARTUP
+            activeCatalogRevision:
+              $ref: '#/components/schemas/CatalogRevision'
+          required: [check, activeCatalogRevision]
+      description: Startup success after configuration, schema, completeness, and expected revision verification.
+    InfoResponse:
+      type: object
+      additionalProperties: false
+      required: [service, applicationVersion, buildRevision, expectedCatalogRevision, activeCatalogRevision, coverage, observedAt]
+      properties:
+        service:
+          type: string
+          const: geographic-reference-service
+        applicationVersion:
+          type: string
+          minLength: 1
+          maxLength: 100
+        buildRevision:
+          type: string
+          minLength: 7
+          maxLength: 64
+          pattern: '^[A-Fa-f0-9]+$'
+        expectedCatalogRevision:
+          $ref: '#/components/schemas/CatalogRevision'
+        activeCatalogRevision:
+          oneOf:
+            - $ref: '#/components/schemas/CatalogRevision'
+            - type: 'null'
+          description: Active revision when safely available; null does not disclose dependency diagnostics.
+        coverage:
+          $ref: '#/components/schemas/InfoCoverage'
+        observedAt:
+          type: string
+          format: date-time
+    InfoCoverage:
+      type: object
+      additionalProperties: false
+      required: [countryRecords, divisionCountryCodes, divisionRecords, countryHistoricalCoverageStart, divisionHistoricalCoverageStart, hierarchyLevels]
+      properties:
+        countryRecords:
+          type: integer
+          minimum: 0
+          example: 249
+        divisionCountryCodes:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: string
+            const: EC
+        divisionRecords:
+          type: integer
+          minimum: 0
+          example: 1293
+        countryHistoricalCoverageStart:
+          type: string
+          format: date
+          example: '2026-01-01'
+        divisionHistoricalCoverageStart:
+          type: string
+          format: date
+          example: '2026-01-01'
+        hierarchyLevels:
+          type: integer
+          const: 3
+    OpenMetricsResponse:
+      type: string
+      description: |
+        OpenMetrics 1.0 exposition ending in `# EOF`. Required metric families cover HTTP
+        request count and duration, errors, not-found outcomes, database pool utilization,
+        reactive connection acquisition duration, query count by route category, readiness,
+        and current catalog revision. No secret-bearing labels or runtime mutation metrics
+        are permitted.
+      minLength: 6
+      maxLength: 1048576
+      pattern: '^[\s\S]*# EOF\n?$'
+      example: |
+        # HELP geographic_reference_http_requests_total Total HTTP requests handled.
+        # TYPE geographic_reference_http_requests_total counter
+        geographic_reference_http_requests_total{route_category="catalog",status="200"} 42
+        # HELP geographic_reference_http_request_duration_seconds HTTP request duration in seconds.
+        # TYPE geographic_reference_http_request_duration_seconds histogram
+        geographic_reference_http_request_duration_seconds_bucket{route_category="catalog",le="0.01"} 18
+        geographic_reference_http_request_duration_seconds_bucket{route_category="catalog",le="0.1"} 40
+        geographic_reference_http_request_duration_seconds_bucket{route_category="catalog",le="+Inf"} 42
+        geographic_reference_http_request_duration_seconds_count{route_category="catalog"} 42
+        geographic_reference_http_request_duration_seconds_sum{route_category="catalog"} 1.25
+        # HELP geographic_reference_errors_total Total request errors by stable code.
+        # TYPE geographic_reference_errors_total counter
+        geographic_reference_errors_total{code="INTERNAL_ERROR"} 0
+        # HELP geographic_reference_not_found_total Total not-found outcomes by resource.
+        # TYPE geographic_reference_not_found_total counter
+        geographic_reference_not_found_total{resource="country"} 1
+        # HELP geographic_reference_db_pool_in_use Reactive database connections currently in use.
+        # TYPE geographic_reference_db_pool_in_use gauge
+        geographic_reference_db_pool_in_use 1
+        # HELP geographic_reference_db_connection_acquire_duration_seconds Reactive connection acquisition duration in seconds.
+        # TYPE geographic_reference_db_connection_acquire_duration_seconds histogram
+        geographic_reference_db_connection_acquire_duration_seconds_bucket{le="0.001"} 30
+        geographic_reference_db_connection_acquire_duration_seconds_bucket{le="0.01"} 41
+        geographic_reference_db_connection_acquire_duration_seconds_bucket{le="+Inf"} 42
+        geographic_reference_db_connection_acquire_duration_seconds_count 42
+        geographic_reference_db_connection_acquire_duration_seconds_sum 0.073
+        # HELP geographic_reference_queries_total Total catalog queries by route category.
+        # TYPE geographic_reference_queries_total counter
+        geographic_reference_queries_total{route_category="countries"} 42
+        # HELP geographic_reference_ready Whether the service is ready to serve the expected catalog revision.
+        # TYPE geographic_reference_ready gauge
+        geographic_reference_ready 1
+        # HELP geographic_reference_catalog_revision_info Active catalog revision information.
+        # TYPE geographic_reference_catalog_revision_info gauge
+        geographic_reference_catalog_revision_info{revision="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} 1
+        # EOF
+    ProblemBase:
+      type: object
+      additionalProperties: false
+      description: RFC 9457 problem detail. Values are safe for the caller and never contain stack traces, SQL, credentials, tokens, connection strings, schema internals, source-file locations, or confidential configuration.
+      required: [type, title, status, detail, instance, code, traceId]
+      properties:
+        type:
+          type: string
+          format: uri
+          enum:
+            - urn:problem-type:geographic-reference:invalid-country-code-format
+            - urn:problem-type:geographic-reference:country-not-found
+            - urn:problem-type:geographic-reference:invalid-division-code-format
+            - urn:problem-type:geographic-reference:division-not-found
+            - urn:problem-type:geographic-reference:unsupported-identifier-scheme
+            - urn:problem-type:geographic-reference:invalid-identifier-format
+            - urn:problem-type:geographic-reference:identifier-not-found
+            - urn:problem-type:geographic-reference:invalid-language-tag
+            - urn:problem-type:geographic-reference:invalid-as-of-date
+            - urn:problem-type:geographic-reference:invalid-pagination
+            - urn:problem-type:geographic-reference:page-size-limit-exceeded
+            - urn:problem-type:geographic-reference:invalid-name-type
+            - urn:problem-type:geographic-reference:duplicate-query-parameter
+            - urn:problem-type:geographic-reference:as-of-outside-catalog-coverage
+            - urn:problem-type:geographic-reference:unsupported-query-parameter
+            - urn:problem-type:geographic-reference:division-coverage-not-available
+            - urn:problem-type:geographic-reference:authentication-required
+            - urn:problem-type:geographic-reference:access-denied
+            - urn:problem-type:geographic-reference:method-not-allowed
+            - urn:problem-type:geographic-reference:geographic-catalog-unavailable
+            - urn:problem-type:geographic-reference:geographic-catalog-timeout
+            - urn:problem-type:geographic-reference:catalog-revision-mismatch
+            - urn:problem-type:geographic-reference:internal-error
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        status:
+          type: integer
+          enum: [400, 401, 403, 404, 405, 500, 503]
+        detail:
+          type: string
+          minLength: 1
+          maxLength: 500
+        instance:
+          type: string
+          format: uri-reference
+          minLength: 1
+          maxLength: 2048
+        code:
+          type: string
+          enum:
+            - INVALID_COUNTRY_CODE_FORMAT
+            - COUNTRY_NOT_FOUND
+            - INVALID_DIVISION_CODE_FORMAT
+            - DIVISION_NOT_FOUND
+            - UNSUPPORTED_IDENTIFIER_SCHEME
+            - INVALID_IDENTIFIER_FORMAT
+            - IDENTIFIER_NOT_FOUND
+            - INVALID_LANGUAGE_TAG
+            - INVALID_AS_OF_DATE
+            - INVALID_PAGINATION
+            - PAGE_SIZE_LIMIT_EXCEEDED
+            - INVALID_NAME_TYPE
+            - DUPLICATE_QUERY_PARAMETER
+            - AS_OF_OUTSIDE_CATALOG_COVERAGE
+            - UNSUPPORTED_QUERY_PARAMETER
+            - DIVISION_COVERAGE_NOT_AVAILABLE
+            - AUTHENTICATION_REQUIRED
+            - ACCESS_DENIED
+            - METHOD_NOT_ALLOWED
+            - GEOGRAPHIC_CATALOG_UNAVAILABLE
+            - GEOGRAPHIC_CATALOG_TIMEOUT
+            - CATALOG_REVISION_MISMATCH
+            - INTERNAL_ERROR
+        traceId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+    Problem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/CountryNotFoundProblem'
+        - $ref: '#/components/schemas/InvalidDivisionCodeFormatProblem'
+        - $ref: '#/components/schemas/DivisionNotFoundProblem'
+        - $ref: '#/components/schemas/UnsupportedIdentifierSchemeProblem'
+        - $ref: '#/components/schemas/InvalidIdentifierFormatProblem'
+        - $ref: '#/components/schemas/IdentifierNotFoundProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/InvalidPaginationProblem'
+        - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+        - $ref: '#/components/schemas/InvalidNameTypeProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+        - $ref: '#/components/schemas/DivisionCoverageNotAvailableProblem'
+        - $ref: '#/components/schemas/AuthenticationRequiredProblem'
+        - $ref: '#/components/schemas/AccessDeniedProblem'
+        - $ref: '#/components/schemas/MethodNotAllowedProblem'
+        - $ref: '#/components/schemas/GeographicCatalogUnavailableProblem'
+        - $ref: '#/components/schemas/GeographicCatalogTimeoutProblem'
+        - $ref: '#/components/schemas/CatalogRevisionMismatchProblem'
+        - $ref: '#/components/schemas/InternalErrorProblem'
+      description: Exactly one of the 23 stable type/status/code triplets.
+    InvalidCountryCodeFormatProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatTriplet'
+    InvalidCountryCodeFormatTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-country-code-format'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_COUNTRY_CODE_FORMAT}
+      required: [type, status, code]
+    CountryNotFoundProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/CountryNotFoundTriplet'
+    CountryNotFoundTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:country-not-found'}
+        status: {type: integer, const: 404}
+        code: {type: string, const: COUNTRY_NOT_FOUND}
+      required: [type, status, code]
+    InvalidDivisionCodeFormatProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidDivisionCodeFormatTriplet'
+    InvalidDivisionCodeFormatTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-division-code-format'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_DIVISION_CODE_FORMAT}
+      required: [type, status, code]
+    DivisionNotFoundProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/DivisionNotFoundTriplet'
+    DivisionNotFoundTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:division-not-found'}
+        status: {type: integer, const: 404}
+        code: {type: string, const: DIVISION_NOT_FOUND}
+      required: [type, status, code]
+    UnsupportedIdentifierSchemeProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/UnsupportedIdentifierSchemeTriplet'
+    UnsupportedIdentifierSchemeTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:unsupported-identifier-scheme'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: UNSUPPORTED_IDENTIFIER_SCHEME}
+      required: [type, status, code]
+    InvalidIdentifierFormatProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidIdentifierFormatTriplet'
+    InvalidIdentifierFormatTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-identifier-format'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_IDENTIFIER_FORMAT}
+      required: [type, status, code]
+    IdentifierNotFoundProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/IdentifierNotFoundTriplet'
+    IdentifierNotFoundTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:identifier-not-found'}
+        status: {type: integer, const: 404}
+        code: {type: string, const: IDENTIFIER_NOT_FOUND}
+      required: [type, status, code]
+    InvalidLanguageTagProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidLanguageTagTriplet'
+    InvalidLanguageTagTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-language-tag'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_LANGUAGE_TAG}
+      required: [type, status, code]
+    InvalidAsOfDateProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidAsOfDateTriplet'
+    InvalidAsOfDateTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-as-of-date'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_AS_OF_DATE}
+      required: [type, status, code]
+    InvalidPaginationProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidPaginationTriplet'
+    InvalidPaginationTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-pagination'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_PAGINATION}
+      required: [type, status, code]
+    PageSizeLimitExceededProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/PageSizeLimitExceededTriplet'
+    PageSizeLimitExceededTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:page-size-limit-exceeded'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: PAGE_SIZE_LIMIT_EXCEEDED}
+      required: [type, status, code]
+    InvalidNameTypeProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InvalidNameTypeTriplet'
+    InvalidNameTypeTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:invalid-name-type'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: INVALID_NAME_TYPE}
+      required: [type, status, code]
+    DuplicateQueryParameterProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/DuplicateQueryParameterTriplet'
+    DuplicateQueryParameterTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:duplicate-query-parameter'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: DUPLICATE_QUERY_PARAMETER}
+      required: [type, status, code]
+    AsOfOutsideCatalogCoverageProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageTriplet'
+    AsOfOutsideCatalogCoverageTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:as-of-outside-catalog-coverage'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: AS_OF_OUTSIDE_CATALOG_COVERAGE}
+      required: [type, status, code]
+    UnsupportedQueryParameterProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterTriplet'
+    UnsupportedQueryParameterTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:unsupported-query-parameter'}
+        status: {type: integer, const: 400}
+        code: {type: string, const: UNSUPPORTED_QUERY_PARAMETER}
+      required: [type, status, code]
+    DivisionCoverageNotAvailableProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/DivisionCoverageNotAvailableTriplet'
+    DivisionCoverageNotAvailableTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:division-coverage-not-available'}
+        status: {type: integer, const: 404}
+        code: {type: string, const: DIVISION_COVERAGE_NOT_AVAILABLE}
+      required: [type, status, code]
+    AuthenticationRequiredProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/AuthenticationRequiredTriplet'
+    AuthenticationRequiredTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:authentication-required'}
+        status: {type: integer, const: 401}
+        code: {type: string, const: AUTHENTICATION_REQUIRED}
+      required: [type, status, code]
+    AccessDeniedProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/AccessDeniedTriplet'
+    AccessDeniedTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:access-denied'}
+        status: {type: integer, const: 403}
+        code: {type: string, const: ACCESS_DENIED}
+      required: [type, status, code]
+    MethodNotAllowedProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/MethodNotAllowedTriplet'
+    MethodNotAllowedTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:method-not-allowed'}
+        status: {type: integer, const: 405}
+        code: {type: string, const: METHOD_NOT_ALLOWED}
+      required: [type, status, code]
+    GeographicCatalogUnavailableProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/GeographicCatalogUnavailableTriplet'
+    GeographicCatalogUnavailableTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:geographic-catalog-unavailable'}
+        status: {type: integer, const: 503}
+        code: {type: string, const: GEOGRAPHIC_CATALOG_UNAVAILABLE}
+      required: [type, status, code]
+    GeographicCatalogTimeoutProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/GeographicCatalogTimeoutTriplet'
+    GeographicCatalogTimeoutTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:geographic-catalog-timeout'}
+        status: {type: integer, const: 503}
+        code: {type: string, const: GEOGRAPHIC_CATALOG_TIMEOUT}
+      required: [type, status, code]
+    CatalogRevisionMismatchProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/CatalogRevisionMismatchTriplet'
+    CatalogRevisionMismatchTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:catalog-revision-mismatch'}
+        status: {type: integer, const: 503}
+        code: {type: string, const: CATALOG_REVISION_MISMATCH}
+      required: [type, status, code]
+    InternalErrorProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemBase'
+        - $ref: '#/components/schemas/InternalErrorTriplet'
+    InternalErrorTriplet:
+      type: object
+      properties:
+        type: {type: string, const: 'urn:problem-type:geographic-reference:internal-error'}
+        status: {type: integer, const: 500}
+        code: {type: string, const: INTERNAL_ERROR}
+      required: [type, status, code]
+    CountryListBadRequestProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - oneOf:
+            - $ref: '#/components/schemas/InvalidPaginationProblem'
+            - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+            - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+            - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+            - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+            - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+            - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    CountryItemBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    CountryNamesBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidPaginationProblem'
+        - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidNameTypeProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    DivisionTypesBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidPaginationProblem'
+        - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    RootDivisionsBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidPaginationProblem'
+        - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    DivisionItemBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidDivisionCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    IdentifierBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/UnsupportedIdentifierSchemeProblem'
+        - $ref: '#/components/schemas/InvalidIdentifierFormatProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    DivisionNamesBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidDivisionCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidPaginationProblem'
+        - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidNameTypeProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    DivisionChildrenBadRequestProblem:
+      oneOf:
+        - $ref: '#/components/schemas/InvalidCountryCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidDivisionCodeFormatProblem'
+        - $ref: '#/components/schemas/InvalidPaginationProblem'
+        - $ref: '#/components/schemas/PageSizeLimitExceededProblem'
+        - $ref: '#/components/schemas/InvalidLanguageTagProblem'
+        - $ref: '#/components/schemas/InvalidAsOfDateProblem'
+        - $ref: '#/components/schemas/AsOfOutsideCatalogCoverageProblem'
+        - $ref: '#/components/schemas/DuplicateQueryParameterProblem'
+        - $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    DivisionCoverageNotFoundProblem:
+      oneOf:
+        - $ref: '#/components/schemas/CountryNotFoundProblem'
+        - $ref: '#/components/schemas/DivisionCoverageNotAvailableProblem'
+    DivisionResourceNotFoundProblem:
+      oneOf:
+        - $ref: '#/components/schemas/CountryNotFoundProblem'
+        - $ref: '#/components/schemas/DivisionCoverageNotAvailableProblem'
+        - $ref: '#/components/schemas/DivisionNotFoundProblem'
+    IdentifierResourceNotFoundProblem:
+      oneOf:
+        - $ref: '#/components/schemas/CountryNotFoundProblem'
+        - $ref: '#/components/schemas/DivisionCoverageNotAvailableProblem'
+        - $ref: '#/components/schemas/IdentifierNotFoundProblem'
+    CatalogServiceUnavailableProblem:
+      oneOf:
+        - $ref: '#/components/schemas/GeographicCatalogUnavailableProblem'
+        - $ref: '#/components/schemas/GeographicCatalogTimeoutProblem'
+        - $ref: '#/components/schemas/CatalogRevisionMismatchProblem'
+  responses:
+    CatalogMetadataOk:
+      description: Activated catalog metadata from one consistent revision.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CatalogMetadata'
+    CountryPageOk:
+      description: Bounded, alpha-2 ordered country page; items may be empty.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CountryPage'
+          examples:
+            outOfRange:
+              $ref: '#/components/examples/EmptyPageExample'
+    CountryOk:
+      description: One visible country resolved to canonical alpha-2 form.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Country'
+    NamePageOk:
+      description: Bounded, deterministically ordered literal name page; items may be empty.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NamePage'
+          examples:
+            noFilterMatches:
+              $ref: '#/components/examples/EmptyPageExample'
+    DivisionTypePageOk:
+      description: Bounded division-type page ordered by hierarchy level then code.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DivisionTypePage'
+    DivisionPageOk:
+      description: Bounded division page ordered by canonical DPA code; items may be empty.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DivisionPage'
+          examples:
+            leafChildren:
+              $ref: '#/components/examples/EmptyPageExample'
+    DivisionOk:
+      description: One visible Ecuador division and its approved identifiers.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdministrativeDivision'
+    AncestorListOk:
+      description: Immediate-parent-to-root list containing zero to two divisions.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AncestorList'
+          examples:
+            root:
+              value:
+                items: []
+                catalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    CatalogHeadOk:
+      description: Matching catalog GET would return 200; all representation headers are present and this HEAD response has no content.
+      x-corresponding-get-content-types: [application/json]
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    CatalogNotModified:
+      description: The selected representation weakly matches `If-None-Match`; no response body is sent.
+      x-corresponding-get-content-types: [application/json]
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+        Cache-Control:
+          $ref: '#/components/headers/CatalogCacheControl'
+        X-Catalog-Revision:
+          $ref: '#/components/headers/CatalogRevision'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    LivenessOk:
+      description: Process viability is UP independently of temporary database availability.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LivenessHealthResponse'
+          example:
+            status: UP
+            check: LIVENESS
+            service: geographic-reference-service
+            applicationVersion: 1.0.0
+            buildRevision: 1a2b3c4d5e6f
+            expectedCatalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            activeCatalogRevision: null
+            observedAt: '2026-07-25T15:04:05Z'
+    ReadinessOk:
+      description: Approved queries can reach the complete activated expected revision.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReadinessHealthResponse'
+          example:
+            status: UP
+            check: READINESS
+            service: geographic-reference-service
+            applicationVersion: 1.0.0
+            buildRevision: 1a2b3c4d5e6f
+            expectedCatalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            activeCatalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            observedAt: '2026-07-25T15:04:05Z'
+    StartupOk:
+      description: Configuration, schema, completeness, and expected catalog revision are verified.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StartupHealthResponse'
+          example:
+            status: UP
+            check: STARTUP
+            service: geographic-reference-service
+            applicationVersion: 1.0.0
+            buildRevision: 1a2b3c4d5e6f
+            expectedCatalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            activeCatalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            observedAt: '2026-07-25T15:04:05Z'
+    OpenMetricsOk:
+      description: OpenMetrics 1.0 exposition.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/openmetrics-text; version=1.0.0; charset=utf-8:
+          schema:
+            $ref: '#/components/schemas/OpenMetricsResponse'
+    InfoOk:
+      description: Safe build and declared catalog coverage information.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InfoResponse'
+    OperationalJsonHeadOk:
+      description: Matching operational GET would return 200; status and headers are identical and this HEAD response has no content.
+      x-corresponding-get-content-types: [application/json]
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    OpenMetricsHeadOk:
+      description: Matching metrics GET would return 200 OpenMetrics 1.0; status and headers are identical and this HEAD response has no content.
+      x-corresponding-get-content-types: ['application/openmetrics-text; version=1.0.0; charset=utf-8']
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    UnsupportedQueryBadRequest:
+      description: The operation accepts no query parameter with the supplied name.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/UnsupportedQueryParameterProblem'
+    CountryListBadRequest:
+      description: Invalid country-list query input or date outside declared coverage.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/CountryListBadRequestProblem'
+    CountryItemBadRequest:
+      description: Invalid country path or item-query input, or date outside declared coverage.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/CountryItemBadRequestProblem'
+    CountryNamesBadRequest:
+      description: Invalid country-name path, filter, pagination, or temporal input.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/CountryNamesBadRequestProblem'
+          examples:
+            invalidCountry: {$ref: '#/components/examples/InvalidCountryCode'}
+            invalidPagination: {$ref: '#/components/examples/InvalidPagination'}
+            pageSizeLimit: {$ref: '#/components/examples/PageSizeLimit'}
+            invalidLanguage: {$ref: '#/components/examples/InvalidLanguage'}
+            invalidNameType: {$ref: '#/components/examples/InvalidNameType'}
+            invalidDate: {$ref: '#/components/examples/InvalidAsOfDate'}
+            outsideCoverage: {$ref: '#/components/examples/AsOfOutsideCoverage'}
+            duplicateParameter: {$ref: '#/components/examples/DuplicateQueryParameter'}
+    DivisionTypesBadRequest:
+      description: Invalid country, pagination, duplicate, or unsupported input for division types.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DivisionTypesBadRequestProblem'
+    RootDivisionsBadRequest:
+      description: Invalid root-division path, pagination, localization, or temporal input.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/RootDivisionsBadRequestProblem'
+    DivisionItemBadRequest:
+      description: Invalid division path, localization, or temporal input.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DivisionItemBadRequestProblem'
+    IdentifierBadRequest:
+      description: Invalid country, scheme, identifier, localization, or temporal input.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/IdentifierBadRequestProblem'
+          examples:
+            unsupportedScheme: {$ref: '#/components/examples/UnsupportedIdentifierScheme'}
+            invalidIdentifier: {$ref: '#/components/examples/InvalidIdentifier'}
+    DivisionNamesBadRequest:
+      description: Invalid division-name path, filter, pagination, or temporal input.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DivisionNamesBadRequestProblem'
+          examples:
+            invalidDivision: {$ref: '#/components/examples/InvalidDivisionCode'}
+    DivisionChildrenBadRequest:
+      description: Invalid child-list path, pagination, localization, or temporal input.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DivisionChildrenBadRequestProblem'
+    Unauthorized:
+      description: Bearer authentication is missing or invalid. This check occurs before input or resource evaluation.
+      headers:
+        WWW-Authenticate:
+          $ref: '#/components/headers/WwwAuthenticate'
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/AuthenticationRequiredProblem'
+    Forbidden:
+      description: The authenticated identity lacks the exact route permission. This check occurs before input or resource evaluation.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/AccessDeniedProblem'
+    CountryNotFound:
+      description: No visible country matches the well-formed supplied code.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/CountryNotFoundProblem'
+    DivisionCoverageNotFound:
+      description: The country identity is absent from the activated catalog, has no declared division coverage, or is not visible at the current/requested date after coverage and input validation.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DivisionCoverageNotFoundProblem'
+    DivisionResourceNotFound:
+      description: The country or division is absent, or the activated-catalog country identity has no declared division coverage.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/DivisionResourceNotFoundProblem'
+    IdentifierResourceNotFound:
+      description: The country or identifier is absent, or the activated-catalog country identity has no declared division coverage.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+        Date: {$ref: '#/components/headers/ResponseDate'}
+        X-Trace-Id: {$ref: '#/components/headers/TraceId'}
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/IdentifierResourceNotFoundProblem'
+    InternalError:
+      description: Unexpected safe server failure, including an operational liveness DOWN result. No confidential diagnostics are returned.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/InternalErrorProblem'
+    ServiceUnavailable:
+      description: The catalog dependency, query deadline, or expected activated revision prevents an atomic response. Readiness/startup DOWN uses this RFC 9457 response.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/CatalogServiceUnavailableProblem'
+    HeadBadRequest:
+      description: Matching GET would return a 400 RFC 9457 problem; HEAD returns identical status and headers without a body.
+      x-corresponding-get-content-types: [application/problem+json]
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    HeadUnauthorized:
+      description: Matching GET would return a 401 RFC 9457 problem; HEAD returns identical status and headers without a body.
+      x-corresponding-get-content-types: [application/problem+json]
+      headers:
+        WWW-Authenticate:
+          $ref: '#/components/headers/WwwAuthenticate'
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    HeadForbidden:
+      description: Matching GET would return a 403 RFC 9457 problem; HEAD returns identical status and headers without a body.
+      x-corresponding-get-content-types: [application/problem+json]
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    HeadNotFound:
+      description: Matching GET would return a 404 RFC 9457 problem; HEAD returns identical status and headers without a body.
+      x-corresponding-get-content-types: [application/problem+json]
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    HeadInternalError:
+      description: Matching GET would return a 500 RFC 9457 problem; HEAD returns identical status and headers without a body.
+      x-corresponding-get-content-types: [application/problem+json]
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+    HeadServiceUnavailable:
+      description: Matching GET would return a 503 RFC 9457 problem; HEAD returns identical status and headers without a body.
+      x-corresponding-get-content-types: [application/problem+json]
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStoreCacheControl'
+        Date:
+          $ref: '#/components/headers/ResponseDate'
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+  examples:
+    EmptyPageExample:
+      summary: Valid filter, leaf, or out-of-range page with no visible items
+      value:
+        items: []
+        page:
+          page: 99
+          pageSize: 50
+          hasNext: false
+        catalogRevision: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    InvalidCountryCode:
+      summary: Synthetic country-name route fixture with a malformed country code
+      value:
+        type: urn:problem-type:geographic-reference:invalid-country-code-format
+        title: Invalid country code format
+        status: 400
+        detail: Country code must be alpha-2, alpha-3, or exactly three digits.
+        instance: /v1/countries/X-1/names
+        code: INVALID_COUNTRY_CODE_FORMAT
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidDivisionCode:
+      summary: Synthetic division-name route fixture with a malformed canonical code
+      value:
+        type: urn:problem-type:geographic-reference:invalid-division-code-format
+        title: Invalid division code format
+        status: 400
+        detail: Canonical division code must contain exactly two, four, or six digits.
+        instance: /v1/countries/EC/divisions/99-0150/names
+        code: INVALID_DIVISION_CODE_FORMAT
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    UnsupportedIdentifierScheme:
+      summary: Synthetic identifier-route fixture with an unsupported scheme
+      value:
+        type: urn:problem-type:geographic-reference:unsupported-identifier-scheme
+        title: Unsupported identifier scheme
+        status: 400
+        detail: The identifier scheme is not supported by the V1 Ecuador catalog.
+        instance: /v1/countries/EC/division-identifiers/OTHER/990150
+        code: UNSUPPORTED_IDENTIFIER_SCHEME
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidIdentifier:
+      summary: Synthetic identifier-route fixture with malformed DPA input
+      value:
+        type: urn:problem-type:geographic-reference:invalid-identifier-format
+        title: Invalid identifier format
+        status: 400
+        detail: The identifier does not match the selected scheme format.
+        instance: /v1/countries/EC/division-identifiers/EC_INEC_DPA/99-0150
+        code: INVALID_IDENTIFIER_FORMAT
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidLanguage:
+      summary: Synthetic country-name route fixture with an invalid language tag
+      value:
+        type: urn:problem-type:geographic-reference:invalid-language-tag
+        title: Invalid language tag
+        status: 400
+        detail: Language must be a canonicalizable BCP 47 tag of at most 35 characters.
+        instance: /v1/countries/XZ/names?language=not_a_tag
+        code: INVALID_LANGUAGE_TAG
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidAsOfDate:
+      summary: Synthetic country-name route fixture with an invalid calendar date
+      value:
+        type: urn:problem-type:geographic-reference:invalid-as-of-date
+        title: Invalid as-of date
+        status: 400
+        detail: As-of must be a real ISO calendar date in YYYY-MM-DD form.
+        instance: /v1/countries/XZ/names?asOf=2026-02-30
+        code: INVALID_AS_OF_DATE
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidPagination:
+      summary: Synthetic country-name route fixture with invalid pagination
+      value:
+        type: urn:problem-type:geographic-reference:invalid-pagination
+        title: Invalid pagination
+        status: 400
+        detail: Page and pageSize must be positive base-10 integers.
+        instance: /v1/countries/XZ/names?page=0
+        code: INVALID_PAGINATION
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    PageSizeLimit:
+      summary: Synthetic country-name route fixture above the page-size limit
+      value:
+        type: urn:problem-type:geographic-reference:page-size-limit-exceeded
+        title: Page size limit exceeded
+        status: 400
+        detail: Page size must not exceed 100.
+        instance: /v1/countries/XZ/names?pageSize=101
+        code: PAGE_SIZE_LIMIT_EXCEEDED
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidNameType:
+      summary: Synthetic country-name route fixture with an invalid name type
+      value:
+        type: urn:problem-type:geographic-reference:invalid-name-type
+        title: Invalid name type
+        status: 400
+        detail: Name type must be one of the five documented uppercase values.
+        instance: /v1/countries/XZ/names?nameType=official
+        code: INVALID_NAME_TYPE
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    DuplicateQueryParameter:
+      summary: Synthetic country-name route fixture with a repeated singleton input
+      value:
+        type: urn:problem-type:geographic-reference:duplicate-query-parameter
+        title: Duplicate query parameter
+        status: 400
+        detail: Singleton query parameters may appear at most once.
+        instance: /v1/countries/XZ/names?page=1&page=2
+        code: DUPLICATE_QUERY_PARAMETER
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    AsOfOutsideCoverage:
+      summary: Synthetic country-name route fixture before declared coverage
+      value:
+        type: urn:problem-type:geographic-reference:as-of-outside-catalog-coverage
+        title: Date outside catalog coverage
+        status: 400
+        detail: The requested date precedes the declared coverage start for this response.
+        instance: /v1/countries/XZ/names?asOf=2025-12-31
+        code: AS_OF_OUTSIDE_CATALOG_COVERAGE
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736

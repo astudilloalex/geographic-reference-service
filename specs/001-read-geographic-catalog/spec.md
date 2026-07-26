@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-25
 
-**Status**: Draft
+**Status**: Approved
 
 **Input**: User description: "Define the main structure of a new independently deployable,
 read-only geographic reference microservice. At runtime it exclusively exposes geographic
@@ -179,9 +179,9 @@ that no query crosses the Ecuador country boundary.
    returned.
 4. **Given** a visible level-three area, **When** its ancestors are requested, **Then** the bounded
    chain is returned from immediate parent to root without cycles or unrelated divisions.
-5. **Given** a visible country other than Ecuador, **When** any division capability is
-   requested, **Then** the service returns `DIVISION_COVERAGE_NOT_AVAILABLE` rather than an
-   empty hierarchy or country-not-found result.
+5. **Given** a country identity present in the activated catalog other than Ecuador, **When** any
+   division capability is requested, **Then** the service returns
+   `DIVISION_COVERAGE_NOT_AVAILABLE` rather than an empty hierarchy or country-not-found result.
 6. **Given** a visible Ecuadorian division, **When** a consumer lists its names with allowed
    language or name-type filters, **Then** a bounded, deterministically ordered page is
    returned and valid filters with no matches produce an empty page.
@@ -332,10 +332,13 @@ acceptance matrix while proving the runtime identity cannot modify catalog data.
   update tokens.
 - **FR-018**: Consumers MUST be able to complete all catalog journeys using published logical
   identifiers and the HTTP contract without a direct database connection or foreign key.
-- **FR-019**: A division capability requested for a visible country other than Ecuador MUST
-  return `DIVISION_COVERAGE_NOT_AVAILABLE`. A malformed country still returns invalid format,
-  and a well-formed unknown or invisible country still returns country not found. Coverage is
-  evaluated before division code, scheme, identifier, language, date, or pagination input.
+- **FR-019**: A division capability requested for a country identity present in the activated
+  catalog but without declared division coverage MUST return `DIVISION_COVERAGE_NOT_AVAILABLE`.
+  A malformed country returns invalid format and a well-formed country identity absent from the
+  activated catalog returns country not found. Coverage is evaluated before division code,
+  scheme, identifier, language, date, or pagination input. For Ecuador, those remaining inputs
+  are then validated before date-specific country visibility; an Ecuador country snapshot not
+  visible on a valid effective date returns country not found.
 - **FR-020**: `EC_INEC_DPA` with a syntactically invalid value returns invalid identifier;
   `ISO_3166_2` with a syntactically invalid value returns invalid identifier; any scheme other
   than the two approved v1 schemes returns unsupported scheme; a valid approved value absent
@@ -392,12 +395,15 @@ acceptance matrix while proving the runtime identity cannot modify catalog data.
 | Direct children | `page`, `pageSize`, `language`, `asOf` | Canonical DPA code; leaf children page is empty |
 | Ancestors | `language`, `asOf` | Immediate parent to root; root result is empty |
 
-All division capabilities apply authentication, authorization, country format, country
-existence, and division coverage in that order before validating remaining path or query
-inputs. A valid non-Ecuador country therefore receives `DIVISION_COVERAGE_NOT_AVAILABLE` even
-when another division-specific input is invalid; it is never represented as an empty Ecuador
-hierarchy. `language` on item and hierarchy queries selects a presentation name using
-fallback, while `language` on name-list queries is a literal record filter.
+All division capabilities apply authentication, authorization, country format, catalog
+dependency/expected revision, activated-catalog country identity existence, and division
+coverage in that order before validating remaining path or query inputs. A known
+non-Ecuador country therefore receives `DIVISION_COVERAGE_NOT_AVAILABLE` even when another
+division-specific input is invalid or would select a date on which that country is not visible;
+it is never represented as an empty Ecuador hierarchy. For Ecuador, remaining inputs including
+`asOf` are validated before current or date-specific country visibility and requested-resource visibility.
+`language` on item and hierarchy queries selects a presentation name using fallback, while
+`language` on name-list queries is a literal record filter.
 
 ### Query Consistency and Snapshot Semantics *(mandatory)*
 
@@ -443,7 +449,8 @@ fallback, while `language` on name-list queries is a literal record filter.
   invalid name type (`400`, `INVALID_NAME_TYPE`); repeated singleton input (`400`,
   `DUPLICATE_QUERY_PARAMETER`); date before declared coverage (`400`,
   `AS_OF_OUTSIDE_CATALOG_COVERAGE`); unsupported input (`400`,
-  `UNSUPPORTED_QUERY_PARAMETER`); division catalog absent for a visible country (`404`,
+  `UNSUPPORTED_QUERY_PARAMETER`); division catalog absent for a country identity present in the
+  activated catalog (`404`,
   `DIVISION_COVERAGE_NOT_AVAILABLE`); authentication missing (`401`,
   `AUTHENTICATION_REQUIRED`); read permission missing (`403`, `ACCESS_DENIED`); unsafe method
   (`405`, `METHOD_NOT_ALLOWED`); database unavailable (`503`,
@@ -454,16 +461,22 @@ fallback, while `language` on name-list queries is a literal record filter.
   strings, schema internals, or confidential configuration.
 - **ER-005**: The specification defines no write-specific conflict, stale-update,
   duplicate-creation, lifecycle-transition, idempotency-key, import, or publication errors.
-- **ER-006**: Known `GET` and `HEAD` routes evaluate missing identity, missing route permission,
-  country-code format when country context exists, country existence and visibility, division
-  coverage when a division capability is requested, remaining path and query input, then
-  requested-resource existence. A dependency failure that prevents the next evaluation step
-  returns its `503` problem. Authentication and authorization therefore reveal no input
-  validity or resource existence, and a visible non-Ecuador country reveals no
-  division-specific validation result. `HEAD` uses the same status and headers as `GET`
-  without a body. Operational routes use the same identity-first order with the observation
-  permission. Unsupported methods, including application `OPTIONS`, return `405` with
-  `Allow: GET, HEAD` without evaluating catalog input or resource existence.
+- **ER-006**: Known `GET` and `HEAD` routes first evaluate missing identity and missing route
+  permission. Catalog metadata and country-list routes then validate their query surface and
+  inputs before catalog dependency/expected revision and resolution. Routes with country context
+  evaluate country-code format, catalog dependency/expected revision, and activated-catalog
+  identity existence before their remaining path/query input. Country routes then evaluate
+  date-specific visibility and requested-resource existence. Temporal division routes evaluate
+  division coverage before remaining path/query input including `asOf`, followed by date-specific
+  country visibility and requested-resource visibility.
+  Division types use the same order without `asOf`, checking current country visibility after
+  coverage and their pagination/query inputs.
+  A dependency failure that prevents the next evaluation step returns its `503` problem.
+  Authentication and authorization therefore reveal no input validity or resource existence,
+  and a known non-Ecuador country reveals no division-specific validation result. `HEAD` uses the
+  same status and headers as `GET` without a body. Operational routes use the same identity-first
+  order with the observation permission. Unsupported methods, including application `OPTIONS`,
+  return `405` with `Allow: GET, HEAD` without evaluating catalog input or resource existence.
 
 ### Security and Operational Access Logging *(mandatory)*
 
@@ -474,8 +487,11 @@ fallback, while `language` on name-list queries is a literal record filter.
   and missing read authorization returns `403` before catalog input is evaluated.
 - **SR-002**: Runtime and migration credentials MUST be separate and supplied by approved
   secret management. Runtime processes receive only SELECT privileges and never receive the
-  migration credential. Secrets and credential-bearing values MUST NOT appear in source,
-  images, logs, health details, metrics, or error responses.
+  migration or administrator credential. Privileged finalization may transiently receive the
+  administrator and runtime-login bootstrap secrets; migration never receives the runtime
+  credential, and runtime later receives only that runtime credential. Secrets and
+  credential-bearing values MUST NOT appear in source, images, logs, health details, metrics, or
+  error responses.
 - **SR-003**: Operational access logs MAY record route, status, duration, caller identity,
   catalog revision, and trace identifier. They MUST NOT record credentials, tokens, or full
   response payloads. A separate audit trail for every successful GET is not required.
@@ -515,9 +531,10 @@ fallback, while `language` on name-list queries is a literal record filter.
   and terminates without changing catalog data. Work that cannot complete within 30 seconds
   fails safely before process termination.
 - **OR-009**: Deployment order is migration validation, approved recovery point when required,
-  external migration execution, integrity and manifest verification, runtime startup with the
-  SELECT-only identity, startup/readiness and smoke verification, then traffic promotion.
-  Failure at any step prevents promotion.
+  external migration execution, integrity and manifest verification, privileged fail-atomic
+  role finalization, runtime startup with the SELECT-only identity, startup/readiness and smoke
+  verification, then traffic promotion. Runtime startup requires successful finalization, not
+  only successful migration. Failure at any step prevents startup or promotion as applicable.
 
 ### Lifecycle and Temporal Behavior *(mandatory when catalog records are queried)*
 
@@ -581,10 +598,16 @@ fallback, while `language` on name-list queries is a literal record filter.
   permission, each accepted parameter alone and in allowed combinations, every malformed and
   repeated parameter class, first/final/out-of-range pages, exact/primary/default language
   selection, every allowed name type, current and explicit historical dates, each temporal
-  boundary, Ecuador and visible non-Ecuador coverage, canonical and both external identifier
+  boundary, Ecuador and known non-Ecuador coverage, canonical and both external identifier
   schemes, database timeout/unavailability, revision mismatch, migration failure, UTC-date
-  ETag rollover, and dependency recovery. Success criteria referring to tested requests use
-  this complete matrix, not an arbitrary sample.
+  ETag rollover, and dependency recovery. Mixed-precedence cases include a known non-Ecuador
+  identity with a date on which it is invisible, known non-Ecuador with invalid downstream
+  input, Ecuador with invalid downstream input before date-specific visibility, Ecuador not
+  visible on a valid date, and division-type current invisibility after coverage and input. They
+  also include invalid catalog-metadata/country-list input during dependency failure, invalid
+  country format during dependency failure, and valid country format with dependency failure
+  before remaining item-route input. Success criteria referring to tested requests use this
+  complete matrix, not an arbitrary sample.
 
 ### Data and Migration Impact *(mandatory)*
 
@@ -779,14 +802,16 @@ fallback, while `language` on name-list queries is a literal record filter.
 - Update the README to distinguish the current scaffold from proposed and implemented
   behavior and to document internal read access and catalog coverage.
 - Revise the C4 architecture to show consuming systems, approved gateway, independently
-  deployed runtime, external one-shot migrator, PostgreSQL, separate identities, deployment
-  ordering, and revision-aware readiness.
+  deployed runtime, external migration and privileged-finalization one-shots, role-management
+  image, PostgreSQL, administrator/migration/runtime identities, exact secret boundaries,
+  deployment ordering, and revision-aware readiness.
 - Revise the DBML to remove mutable-runtime implications, enforce exclusive temporal ends,
   define catalog revision and identifier schemes, allow multiple types at hierarchy level
   three, complete provenance, and clarify migration-owned audit fields.
 - Preserve the pinned source manifest and document its legal approval, derived-record manifest,
-  immutable SQL migration strategy, database grants, migration and runtime secret separation,
-  recovery process, and deterministic validation.
+  immutable SQL migration strategy, transactional role finalization, database grants,
+  administrator/migration/runtime secret boundaries, recovery process, and deterministic
+  validation.
 - Add security, deployment, rootless service operation, local-development, testing,
   observability, and operational runbook documentation aligned with the permanent read-only
   boundary.

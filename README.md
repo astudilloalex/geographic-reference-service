@@ -1,9 +1,16 @@
 # geographic-reference-service
 
-Geographic Reference Service is the runtime read-only system of record for global
-geographic reference data. It exposes only safe query operations through `GET`, `HEAD`,
-and protocol-required `OPTIONS`; it does not provide administrative, import,
-publication, lifecycle-command, generic CRUD, or mutation endpoints.
+Geographic Reference Service is intended to become the runtime read-only system of record for
+global geographic reference data. The approved design exposes only safe query operations
+through `GET` and `HEAD`; it does not provide administrative, import, publication,
+lifecycle-command, generic CRUD, or mutation endpoints.
+
+> **Current status**: This repository is an initial scaffold. The approved behavior and
+> implementation design are defined in
+> [`specs/001-read-geographic-catalog`](specs/001-read-geographic-catalog/); catalog routes,
+> PostgreSQL migrations, security, observability, and deployment units are not implemented
+> yet. The feature contract permits `GET` and `HEAD` only and does not require application
+> `OPTIONS`.
 
 Schema and catalog data are maintained exclusively through reviewed, immutable Flyway
 SQL migrations. Flyway runs outside the application with a dedicated migration identity.
