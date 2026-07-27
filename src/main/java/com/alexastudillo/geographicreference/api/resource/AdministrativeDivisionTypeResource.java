@@ -7,6 +7,7 @@ import com.alexastudillo.geographicreference.api.dto.AdministrativeDivisionTypeA
 import com.alexastudillo.geographicreference.api.error.ApiException;
 import com.alexastudillo.geographicreference.api.error.ApiResponseCode;
 import com.alexastudillo.geographicreference.api.mapper.AdministrativeDivisionTypeRestMapper;
+import com.alexastudillo.geographicreference.api.openapi.OpenApiResponses;
 import com.alexastudillo.geographicreference.api.response.ApiResponse;
 import com.alexastudillo.geographicreference.api.response.ResponseManager;
 import com.alexastudillo.geographicreference.api.validation.ApiRequestValidator;
@@ -59,6 +60,12 @@ public class AdministrativeDivisionTypeResource {
 
         @GET
         @Operation(summary = "List administrative division types")
+        @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+                        responseCode = "200",
+                        description = "Administrative division types returned successfully",
+                        content = @Content(schema = @Schema(
+                                        implementation = OpenApiResponses.AdministrativeDivisionTypeListResponse.class))
+        )
         public Uni<RestResponse<ApiResponse<List<AdministrativeDivisionTypeApiResponse>>>> list(
                         @PathParam("countryId") final String countryId,
                         @Parameter(description = "DRAFT, ACTIVE, DEPRECATED, or RETIRED") @QueryParam("status") final String status) {
@@ -76,6 +83,12 @@ public class AdministrativeDivisionTypeResource {
         @GET
         @Path("/by-code/{code}")
         @Operation(summary = "Get administrative division type by country and code")
+        @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+                        responseCode = "200",
+                        description = "Administrative division type returned successfully",
+                        content = @Content(schema = @Schema(
+                                        implementation = OpenApiResponses.AdministrativeDivisionTypeResponse.class))
+        )
         public Uni<RestResponse<ApiResponse<AdministrativeDivisionTypeApiResponse>>> findByCode(
                         @PathParam("countryId") final String countryId,
                         @PathParam("code") final String code) {
@@ -92,6 +105,12 @@ public class AdministrativeDivisionTypeResource {
         @GET
         @Path("/{divisionTypeId}")
         @Operation(summary = "Get administrative division type by ID")
+        @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+                        responseCode = "200",
+                        description = "Administrative division type returned successfully",
+                        content = @Content(schema = @Schema(
+                                        implementation = OpenApiResponses.AdministrativeDivisionTypeResponse.class))
+        )
         public Uni<RestResponse<ApiResponse<AdministrativeDivisionTypeApiResponse>>> findById(
                         @PathParam("countryId") final String countryId,
                         @PathParam("divisionTypeId") final String divisionTypeId) {

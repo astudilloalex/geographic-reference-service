@@ -8,6 +8,7 @@ import com.alexastudillo.geographicreference.api.dto.CountryNameApiResponse;
 import com.alexastudillo.geographicreference.api.error.ApiException;
 import com.alexastudillo.geographicreference.api.error.ApiResponseCode;
 import com.alexastudillo.geographicreference.api.mapper.CountryRestMapper;
+import com.alexastudillo.geographicreference.api.openapi.OpenApiResponses;
 import com.alexastudillo.geographicreference.api.response.ApiResponse;
 import com.alexastudillo.geographicreference.api.response.ResponseManager;
 import com.alexastudillo.geographicreference.api.validation.ApiRequestValidator;
@@ -57,6 +58,11 @@ public class CountryResource {
 
     @GET
     @Operation(summary = "List countries", description = "Optionally filters countries by lifecycle status")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Countries returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryListResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<List<CountryApiResponse>>>> list(
             @Parameter(description = "DRAFT, ACTIVE, DEPRECATED, or RETIRED") @QueryParam("status") final String status) {
         final Uni<List<CountryResponse>> result = status == null
@@ -72,6 +78,11 @@ public class CountryResource {
     @GET
     @Path("/{countryId}")
     @Operation(summary = "Get country by ID")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Country returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<CountryApiResponse>>> findById(
             @PathParam("countryId") final String countryId) {
         return existingCountry(validator.uuid(countryId))
@@ -83,6 +94,11 @@ public class CountryResource {
     @GET
     @Path("/by-alpha2/{alpha2Code}")
     @Operation(summary = "Get country by ISO alpha-2 code")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Country returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<CountryApiResponse>>> findByAlpha2Code(
             @PathParam("alpha2Code") final String alpha2Code) {
         return requiredCountry(queryPort.findByAlpha2Code(validator.alpha2Code(alpha2Code)))
@@ -94,6 +110,11 @@ public class CountryResource {
     @GET
     @Path("/by-alpha3/{alpha3Code}")
     @Operation(summary = "Get country by ISO alpha-3 code")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Country returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<CountryApiResponse>>> findByAlpha3Code(
             @PathParam("alpha3Code") final String alpha3Code) {
         return requiredCountry(queryPort.findByAlpha3Code(validator.alpha3Code(alpha3Code)))
@@ -105,6 +126,11 @@ public class CountryResource {
     @GET
     @Path("/by-numeric/{numericCode}")
     @Operation(summary = "Get country by ISO numeric code")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Country returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<CountryApiResponse>>> findByNumericCode(
             @PathParam("numericCode") final String numericCode) {
         return requiredCountry(queryPort.findByNumericCode(validator.numericCode(numericCode)))
@@ -116,6 +142,11 @@ public class CountryResource {
     @GET
     @Path("/{countryId}/names")
     @Operation(summary = "List localized names for a country")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Country names returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryNameListResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<List<CountryNameApiResponse>>>> findNames(
             @PathParam("countryId") final String countryId) {
         final UUID id = validator.uuid(countryId);
@@ -131,6 +162,11 @@ public class CountryResource {
     @Operation(
             summary = "List localized country names",
             description = "Returns country names filtered by ISO code type, geographic name type, and BCP 47 language tag"
+    )
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Localized country names returned successfully",
+            content = @Content(schema = @Schema(implementation = OpenApiResponses.CountryNameLookupListResponse.class))
     )
     public Uni<RestResponse<ApiResponse<List<CountryNameLookupApiResponse>>>> findNames(
             @Parameter(

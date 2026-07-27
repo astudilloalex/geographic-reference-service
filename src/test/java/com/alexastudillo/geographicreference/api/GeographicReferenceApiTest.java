@@ -393,7 +393,29 @@ class GeographicReferenceApiTest {
                 .then()
                 .statusCode(200)
                 .body("info.title", equalTo("Geographic Reference API"))
-                .body("info.version", equalTo("1.0.0"));
+                .body("info.version", equalTo("1.0.0"))
+                .body(
+                        "paths.'/api/v1/countries'.get.parameters.find { it.name == 'process-id' }.schema.format",
+                        equalTo("uuid"))
+                .body(
+                        "paths.'/api/v1/countries'.get.parameters.find { it.name == 'user-id' }.required",
+                        equalTo(true))
+                .body(
+                        "paths.'/api/v1/countries'.get.parameters.find { it.name == 'user-id' }.schema.maxLength",
+                        equalTo(128))
+                .body(
+                        "paths.'/api/v1/countries'.get.parameters.find { it.name == 'company-id' }.schema.format",
+                        equalTo("uuid"))
+                .body(
+                        "paths.'/api/v1/countries'.get.responses.'200'.headers.'process-id'.schema.format",
+                        equalTo("uuid"))
+                .body(
+                        "paths.'/api/v1/countries'.get.responses.'200'.content.'application/json'.schema.'$ref'",
+                        equalTo("#/components/schemas/CountryListResponse"))
+                .body("components.schemas.CountryListResponse.properties.data.type", equalTo("array"))
+                .body(
+                        "components.schemas.CountryListResponse.properties.data.items.'$ref'",
+                        equalTo("#/components/schemas/CountryApiResponse"));
 
         given()
                 .redirects().follow(false)

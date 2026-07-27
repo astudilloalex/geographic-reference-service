@@ -10,6 +10,7 @@ import com.alexastudillo.geographicreference.api.dto.AdministrativeDivisionNameA
 import com.alexastudillo.geographicreference.api.error.ApiException;
 import com.alexastudillo.geographicreference.api.error.ApiResponseCode;
 import com.alexastudillo.geographicreference.api.mapper.AdministrativeDivisionRestMapper;
+import com.alexastudillo.geographicreference.api.openapi.OpenApiResponses;
 import com.alexastudillo.geographicreference.api.response.ApiResponse;
 import com.alexastudillo.geographicreference.api.response.ResponseManager;
 import com.alexastudillo.geographicreference.api.validation.ApiRequestValidator;
@@ -75,6 +76,12 @@ public class AdministrativeDivisionResource {
 
     @GET
     @Operation(summary = "List administrative divisions", description = "Supports country, parent, root, or type/status queries")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Administrative divisions returned successfully",
+            content = @Content(schema = @Schema(
+                    implementation = OpenApiResponses.AdministrativeDivisionListResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<List<AdministrativeDivisionApiResponse>>>> list(
             @PathParam("countryId") final String countryId,
             @Parameter(description = "Parent division UUID; cannot be combined with other filters")
@@ -99,6 +106,12 @@ public class AdministrativeDivisionResource {
     @GET
     @Path("/by-canonical-code/{canonicalCode}")
     @Operation(summary = "Get administrative division by canonical code")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Administrative division returned successfully",
+            content = @Content(schema = @Schema(
+                    implementation = OpenApiResponses.AdministrativeDivisionResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<AdministrativeDivisionApiResponse>>> findByCanonicalCode(
             @PathParam("countryId") final String countryId,
             @PathParam("canonicalCode") final String canonicalCode
@@ -119,6 +132,12 @@ public class AdministrativeDivisionResource {
     @GET
     @Path("/{divisionId}")
     @Operation(summary = "Get administrative division by ID")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Administrative division returned successfully",
+            content = @Content(schema = @Schema(
+                    implementation = OpenApiResponses.AdministrativeDivisionResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<AdministrativeDivisionApiResponse>>> findById(
             @PathParam("countryId") final String countryId,
             @PathParam("divisionId") final String divisionId
@@ -133,6 +152,12 @@ public class AdministrativeDivisionResource {
     @GET
     @Path("/{divisionId}/identifiers")
     @Operation(summary = "List identifiers for an administrative division")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Administrative division identifiers returned successfully",
+            content = @Content(schema = @Schema(
+                    implementation = OpenApiResponses.AdministrativeDivisionIdentifierListResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<List<AdministrativeDivisionIdentifierApiResponse>>>> findIdentifiers(
             @PathParam("countryId") final String countryId,
             @PathParam("divisionId") final String divisionId
@@ -149,6 +174,12 @@ public class AdministrativeDivisionResource {
     @GET
     @Path("/{divisionId}/names")
     @Operation(summary = "List localized names for an administrative division")
+    @org.eclipse.microprofile.openapi.annotations.responses.APIResponse(
+            responseCode = "200",
+            description = "Administrative division names returned successfully",
+            content = @Content(schema = @Schema(
+                    implementation = OpenApiResponses.AdministrativeDivisionNameListResponse.class))
+    )
     public Uni<RestResponse<ApiResponse<List<AdministrativeDivisionNameApiResponse>>>> findNames(
             @PathParam("countryId") final String countryId,
             @PathParam("divisionId") final String divisionId
