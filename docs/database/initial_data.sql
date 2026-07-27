@@ -58,7 +58,7 @@ INSERT INTO
 VALUES
     (
         '019f9fd7-ade6-79bb-93b9-848cdda34c19',
-        'es-EC',
+        'es',
         'COMMON',
         'ECUADOR',
         TRUE,
@@ -72,7 +72,7 @@ VALUES
     ),
     (
         '019f9fd7-ade6-79bb-93b9-848cdda34c19',
-        'es-EC',
+        'es',
         'OFFICIAL',
         'REPÚBLICA DEL ECUADOR',
         FALSE,
