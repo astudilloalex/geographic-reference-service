@@ -21,6 +21,7 @@ dependencies {
     implementation("io.quarkus:quarkus-jdbc-postgresql")
     implementation("io.quarkus:quarkus-reactive-pg-client")
     implementation("io.quarkus:quarkus-rest-jackson")
+    implementation("io.quarkus:quarkus-smallrye-health")
     implementation("io.quarkus:quarkus-smallrye-openapi")
     implementation("io.smallrye.reactive:mutiny")
     implementation("org.jboss.slf4j:slf4j-jboss-logmanager")

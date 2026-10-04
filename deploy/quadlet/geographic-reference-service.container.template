@@ -17,6 +17,11 @@ DropCapability=all
 ReadOnly=true
 PidsLimit=256
 LogDriver=journald
+HealthCmd=/usr/bin/curl --fail --silent --show-error --max-time 3 --output /dev/null http://127.0.0.1:8080/q/health/ready
+HealthInterval=30s
+HealthTimeout=5s
+HealthStartPeriod=60s
+HealthRetries=3
 
 [Service]
 Restart=on-failure

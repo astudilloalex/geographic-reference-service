@@ -11,7 +11,7 @@ readonly QUADLET_TEMPLATE="${SOURCE_DIRECTORY}/${APP_NAME}.container.template"
 readonly QUADLET_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.container"
 readonly ENVIRONMENT_FILE="${HOME}/deployment/env/${APP_NAME}.env"
 readonly REGISTRY_AUTH_FILE="${CONFIG_HOME}/containers/auth.json"
-readonly HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8081/q/openapi}"
+readonly HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8081/q/health/ready}"
 readonly -a REQUIRED_NETWORKS=("internal-services" "geographic-db")
 
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"

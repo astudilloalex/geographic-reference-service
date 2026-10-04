@@ -4,11 +4,25 @@ The [`.github/workflows/deploy-native-vps.yml`](../../.github/workflows/deploy-n
 workflow compiles Quarkus as a native Linux `amd64` executable, builds a
 container image, publishes it to GHCR, and deploys the immutable
 `sha-<commit>` tag over SSH. The remote script pulls the image first, restarts
-the rootless Quadlet service, checks `/q/openapi`, and restores the previous
+the rootless Quadlet service, checks `/q/health/ready`, and restores the previous
 version if the health check fails.
 
 The `latest` image is also published, but deployments do not depend on that
 mutable tag.
+
+The application exposes `/q/health/live` for liveness and `/q/health/ready` for
+readiness. Readiness validates both the JDBC and reactive PostgreSQL
+datasources through Quarkus SmallRye Health. The native image includes
+`curl-minimal` so Podman can run the Quadlet's health command inside the
+container on port `8080`.
+
+Podman checks readiness every 30 seconds, with a 5-second timeout, a 60-second
+startup grace period, and 3 consecutive failures before marking the container
+`unhealthy`. A successful check marks it `healthy`, visible in `podman ps`.
+This readiness check reports health without restarting the container when
+PostgreSQL is temporarily unavailable; systemd still restarts the service if
+its process fails. The deployment script separately checks readiness through
+the host port `8081` and rolls back a failed deployment.
 
 ## 1. VPS Requirements
 
@@ -220,7 +234,9 @@ Run these commands as the `containers` user:
 systemctl --user status geographic-reference-service.service
 journalctl --user -u geographic-reference-service.service -f
 podman ps
-curl --fail http://127.0.0.1:8081/q/openapi
+curl --fail http://127.0.0.1:8081/q/health/ready
+podman healthcheck run geographic-reference-service
+podman inspect --format '{{.State.Health.Status}}' geographic-reference-service
 ```
 
 The final Quadlet is installed at:

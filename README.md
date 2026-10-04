@@ -96,6 +96,11 @@ Do not commit production credentials. The production Quadlet reads
 The environment-file format is documented in
 [`deploy/quadlet/geographic-reference-service.env.example`](deploy/quadlet/geographic-reference-service.env.example).
 
+Health endpoints are available at `/q/health/live` and `/q/health/ready`.
+Readiness validates the JDBC and reactive PostgreSQL connections. The production
+Quadlet checks readiness periodically so `podman ps` shows the container's
+health status; deployment also checks readiness before reporting success.
+
 ## Development
 
 Start the application with live reload:
