@@ -91,8 +91,9 @@ must already exist.
 | `DB_REACTIVE_URL` | `postgresql://127.0.0.1:5432/geographic_reference_service` | Required |
 | `DB_JDBC_URL` | `jdbc:postgresql://127.0.0.1:5432/geographic_reference_service` | Required |
 
-Do not commit production credentials. The production Quadlet environment-file
-format is documented in
+Do not commit production credentials. The production Quadlet reads
+`~/deployment/env/geographic-reference-service.env`, including `QUARKUS_PROFILE=prod`.
+The environment-file format is documented in
 [`deploy/quadlet/geographic-reference-service.env.example`](deploy/quadlet/geographic-reference-service.env.example).
 
 ## Development

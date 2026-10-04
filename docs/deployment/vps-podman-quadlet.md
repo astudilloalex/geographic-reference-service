@@ -15,7 +15,7 @@ mutable tag.
 - An `x86_64` Linux server running systemd.
 - Podman 5 or later with Quadlet.
 - `curl`, `grep`, `sed`, and the standard GNU utilities.
-- A deployment user without `sudo`; the examples use `deploy`.
+- A deployment user without `sudo`; production and the examples use `containers`.
 - PostgreSQL reachable from the container.
 - The `internal-services` and `geographic-db` Podman networks created for the
   deployment user by the VPS infrastructure configuration.
@@ -31,23 +31,25 @@ The generated service limits the container to 512 MiB of memory, one CPU, and
 in the Quadlet template only after observing production usage.
 
 As the VPS administrator, allow the user's systemd services to run even when
-`deploy` does not have an active login session:
+`containers` does not have an active login session:
 
 ```bash
-sudo loginctl enable-linger deploy
+sudo loginctl enable-linger containers
 ```
 
 Then log in directly as that user and prepare the configuration:
 
 ```bash
-install -d -m 700 ~/.config/containers/systemd
-install -m 600 /dev/null \
-  ~/.config/containers/systemd/geographic-reference-service.env
+install -d -m 700 ~/.config/containers/systemd ~/deployment/env
+if [ ! -f ~/deployment/env/geographic-reference-service.env ]; then
+  install -m 600 /dev/null ~/deployment/env/geographic-reference-service.env
+fi
 ```
 
 The file must use the following format:
 
 ```dotenv
+QUARKUS_PROFILE=prod
 DB_USERNAME=geographic_reference_service
 DB_PASSWORD=a-long-password
 DB_REACTIVE_URL=postgresql://database-host:5432/geographic_reference_service
@@ -57,6 +59,18 @@ DB_JDBC_URL=jdbc:postgresql://database-host:5432/geographic_reference_service
 Do not store this file or the PostgreSQL password in GitHub. The versioned
 example is available at
 [`deploy/quadlet/geographic-reference-service.env.example`](../../deploy/quadlet/geographic-reference-service.env.example).
+
+The Quadlet reads `%h/deployment/env/geographic-reference-service.env`, which
+resolves to `/home/containers/deployment/env/geographic-reference-service.env`
+for the production user. The deployment script validates the same file before
+pulling the image or restarting the service. GitHub Actions uploads only the
+Quadlet template and deployment script; it does not upload or overwrite this
+environment file.
+
+For an existing installation, add `QUARKUS_PROFILE=prod` to the production
+environment file before deploying this template: the profile is now supplied
+by that file instead of an inline `Environment=` entry in the Quadlet. Preserve
+the existing database values and keep the file permissions at `0600`.
 
 If PostgreSQL is installed directly on the same VPS, `127.0.0.1` inside the
 container does not refer to the host. Use `host.containers.internal` if it is
@@ -91,7 +105,7 @@ podman network exists geographic-db
 
 GHCR packages are initially private in many repositories. Create a classic
 personal access token with only the `read:packages` scope and authenticate
-Podman once as `deploy`:
+Podman once as `containers`:
 
 ```bash
 install -d -m 700 ~/.config/containers
@@ -113,7 +127,7 @@ required if the GHCR image is public.
 ## 3. Dedicated SSH Key
 
 Generate an Ed25519 key exclusively for the workflow and add only its public
-key to `~deploy/.ssh/authorized_keys`:
+key to `~containers/.ssh/authorized_keys`:
 
 ```bash
 ssh-keygen -t ed25519 \
@@ -147,7 +161,7 @@ Configure these secrets inside `production`:
 | Name | Value |
 | --- | --- |
 | `VPS_HOST` | The VPS public IPv4 address |
-| `VPS_USER` | The rootless user, for example `deploy` |
+| `VPS_USER` | `containers`, the production rootless user |
 | `VPS_SSH_PRIVATE_KEY` | The complete dedicated private key |
 | `VPS_SSH_KNOWN_HOSTS` | The verified `known_hosts` line |
 
@@ -200,7 +214,7 @@ server.
 
 ## 6. Operations and Troubleshooting
 
-Run these commands as the `deploy` user:
+Run these commands as the `containers` user:
 
 ```bash
 systemctl --user status geographic-reference-service.service

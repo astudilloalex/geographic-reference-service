@@ -6,8 +6,7 @@ After=network-online.target
 [Container]
 Image=@@IMAGE@@
 ContainerName=geographic-reference-service
-Environment=QUARKUS_PROFILE=prod
-EnvironmentFile=geographic-reference-service.env
+EnvironmentFile=%h/deployment/env/geographic-reference-service.env
 Network=internal-services.network
 Network=geographic-db.network
 NetworkAlias=geographic-reference-service

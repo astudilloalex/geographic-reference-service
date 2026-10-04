@@ -9,7 +9,7 @@ readonly CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
 readonly QUADLET_DIRECTORY="${CONFIG_HOME}/containers/systemd"
 readonly QUADLET_TEMPLATE="${SOURCE_DIRECTORY}/${APP_NAME}.container.template"
 readonly QUADLET_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.container"
-readonly ENVIRONMENT_FILE="${QUADLET_DIRECTORY}/${APP_NAME}.env"
+readonly ENVIRONMENT_FILE="${HOME}/deployment/env/${APP_NAME}.env"
 readonly REGISTRY_AUTH_FILE="${CONFIG_HOME}/containers/auth.json"
 readonly HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8081/q/openapi}"
 readonly -a REQUIRED_NETWORKS=("internal-services" "geographic-db")
@@ -48,7 +48,7 @@ fi
 install -d -m 700 "${QUADLET_DIRECTORY}"
 
 [[ -f "${ENVIRONMENT_FILE}" ]] ||
-  fail "Create ${ENVIRONMENT_FILE} with the production database variables before the first deployment"
+  fail "Create ${ENVIRONMENT_FILE} with the production profile and database variables before the first deployment"
 
 environment_mode="$(stat -c '%a' "${ENVIRONMENT_FILE}")"
 if (( (8#${environment_mode} & 077) != 0 )); then
@@ -56,7 +56,7 @@ if (( (8#${environment_mode} & 077) != 0 )); then
 fi
 
 missing_variables=()
-for variable_name in DB_USERNAME DB_PASSWORD DB_REACTIVE_URL DB_JDBC_URL; do
+for variable_name in QUARKUS_PROFILE DB_USERNAME DB_PASSWORD DB_REACTIVE_URL DB_JDBC_URL; do
   if ! grep -Eq "^${variable_name}=.+" "${ENVIRONMENT_FILE}"; then
     missing_variables+=("${variable_name}")
   fi
